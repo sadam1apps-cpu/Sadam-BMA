@@ -1,0 +1,6 @@
+{
+  "name": "Business Management App",
+  "description": "Central management system to track daily sales, expenses, estimated profits, cash balances, inventory, invoices, customers, suppliers, employees, and reports on mobile and computer.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
