@@ -8,32 +8,49 @@ interface BeforeInstallPromptEvent extends Event {
 const DISMISS_KEY = 'stech_pwa_dismissed_at';
 const DISMISS_DAYS = 7;
 
+function isMobileDevice(): boolean {
+  const ua = window.navigator.userAgent;
+  // Check UA for mobile/tablet indicators
+  const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua);
+  // Also check coarse pointer (touch) + no hover as a strong mobile signal
+  const touchOnly =
+    window.matchMedia('(pointer: coarse)').matches &&
+    !window.matchMedia('(any-pointer: fine)').matches;
+  return uaMobile || touchOnly;
+}
+
 export default function InstallPWA() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
+    // 1) Only on mobile devices
+    if (!isMobileDevice()) return;
+
+    // 2) Respect previous dismissal
     const dismissedAt = localStorage.getItem(DISMISS_KEY);
     if (dismissedAt) {
       const days = (Date.now() - Number(dismissedAt)) / (1000 * 60 * 60 * 24);
       if (days < DISMISS_DAYS) return;
     }
 
-    const ua = window.navigator.userAgent;
-    const iOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+    // 3) Skip if already installed (standalone)
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;
-
     if (standalone) return;
 
+    // 4) iOS Safari — no beforeinstallprompt, show instructions
+    const ua = window.navigator.userAgent;
+    const iOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
     if (iOS) {
       setIsIOS(true);
       setVisible(true);
       return;
     }
 
+    // 5) Android / Chrome — use native prompt
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
@@ -52,9 +69,7 @@ export default function InstallPWA() {
     if (!deferred) return;
     await deferred.prompt();
     const choice = await deferred.userChoice;
-    if (choice.outcome === 'accepted') {
-      setVisible(false);
-    }
+    if (choice.outcome === 'accepted') setVisible(false);
     setDeferred(null);
   };
 
