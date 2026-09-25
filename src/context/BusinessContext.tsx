@@ -67,7 +67,10 @@ interface BusinessContextType {
   isScreenLocked: boolean;
   isLoginModalOpen: boolean;
   setIsLoginModalOpen: (open: boolean) => void;
-  loginWithPin: (pin: string, employeeId?: string) => { success: boolean; message?: string };
+  loginWithPin: (
+    pin: string,
+    identifierOrId?: string
+  ) => { success: boolean; message?: string; matchesCount?: number };
   loginWithCredentials: (identifier: string, passwordOrPin: string) => { success: boolean; message?: string };
   loginAsEmployee: (employeeId: string) => boolean;
   logout: () => void;
@@ -412,13 +415,24 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (d.accounts && Array.isArray(d.accounts)) setAccounts(d.accounts);
         if (d.stockMovements && Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements);
         if (d.employees && Array.isArray(d.employees)) {
-          setEmployees(d.employees);
+          const normalizedEmployees: Employee[] = d.employees.map((emp) => ({
+            ...emp,
+            pin: emp.pin !== undefined && emp.pin !== null ? String(emp.pin).trim() : '1234',
+            password: emp.password !== undefined && emp.password !== null ? String(emp.password).trim() : 'password',
+          }));
+          setEmployees(normalizedEmployees);
           setCurrentUserState((prev) => {
-            if (prev && d.employees!.some((e) => e.id === prev.id)) {
-              const updated = d.employees!.find((e) => e.id === prev.id);
-              return updated || prev;
+            if (prev && normalizedEmployees.some((e) => e.id === prev.id)) {
+              const updated = normalizedEmployees.find((e) => e.id === prev.id);
+              if (updated) {
+                localStorage.setItem(`${STORAGE_PREFIX}currentUser`, JSON.stringify(updated));
+                return updated;
+              }
+              return prev;
             }
-            return d.employees![0] || null;
+            // CRITICAL SECURITY FIX: Do NOT auto-login employees[0] when unauthenticated!
+            // Prevents the app from automatically logging in after a page reload.
+            return null;
           });
         }
         if (d.profile && typeof d.profile === 'object') {
@@ -1206,22 +1220,54 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Staff Authentication Methods
   const loginWithPin = (
     pin: string,
-    employeeId?: string
-  ): { success: boolean; message?: string } => {
-    const cleanPin = pin.trim();
+    identifierOrId?: string
+  ): { success: boolean; message?: string; matchesCount?: number } => {
+    const cleanPin = String(pin).trim();
     if (!cleanPin) {
       return { success: false, message: 'Please enter your 4-digit staff PIN.' };
     }
 
+    if (employees.length === 0) {
+      if (sheetsSyncStatus === 'syncing') {
+        return { success: false, message: 'Connecting to database. Please wait a moment...' };
+      }
+      return { success: false, message: 'No staff accounts configured. Please initialize store owner.' };
+    }
+
     let matched: Employee | undefined;
-    if (employeeId) {
-      matched = employees.find(
-        (e) => e.id === employeeId && (e.pin === cleanPin || (!e.pin && cleanPin === '1234'))
-      );
+    if (identifierOrId && identifierOrId.trim()) {
+      const cleanIdent = identifierOrId.trim().toLowerCase();
+      matched = employees.find((e) => {
+        const idMatch = e.id.toLowerCase() === cleanIdent;
+        const emailMatch = e.email ? e.email.toLowerCase() === cleanIdent : false;
+        const nameMatch = e.name ? e.name.toLowerCase() === cleanIdent : false;
+        const empPin = e.pin !== undefined && e.pin !== null ? String(e.pin).trim() : '1234';
+        const pinMatch = empPin === cleanPin;
+        return (idMatch || emailMatch || nameMatch) && pinMatch;
+      });
+
+      if (!matched) {
+        return { success: false, message: 'Incorrect PIN or employee identifier.' };
+      }
     } else {
-      matched = employees.find(
-        (e) => e.pin === cleanPin || (!e.pin && cleanPin === '1234')
-      );
+      const matchingEmployees = employees.filter((e) => {
+        const empPin = e.pin !== undefined && e.pin !== null ? String(e.pin).trim() : '1234';
+        return empPin === cleanPin;
+      });
+
+      if (matchingEmployees.length === 0) {
+        return { success: false, message: 'Incorrect PIN. Please try again.' };
+      }
+
+      if (matchingEmployees.length > 1) {
+        return {
+          success: false,
+          matchesCount: matchingEmployees.length,
+          message: 'Multiple accounts share this default PIN. Please enter your work email or use Password login.',
+        };
+      }
+
+      matched = matchingEmployees[0];
     }
 
     if (!matched) {
@@ -1255,24 +1301,32 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     passwordOrPin: string
   ): { success: boolean; message?: string } => {
     const idClean = identifier.trim().toLowerCase();
-    const passClean = passwordOrPin.trim();
+    const passClean = String(passwordOrPin).trim();
 
     if (!idClean) {
-      return { success: false, message: 'Please enter your work email, name, or phone.' };
+      return { success: false, message: 'Please enter your work email or username.' };
     }
     if (!passClean) {
       return { success: false, message: 'Please enter your account password or PIN.' };
     }
 
+    if (employees.length === 0) {
+      if (sheetsSyncStatus === 'syncing') {
+        return { success: false, message: 'Connecting to database. Please wait a moment...' };
+      }
+      return { success: false, message: 'No staff accounts configured. Please initialize store owner.' };
+    }
+
     const matched = employees.find((e) => {
-      const emailMatch = e.email.toLowerCase() === idClean;
-      const nameMatch = e.name.toLowerCase() === idClean;
-      const phoneMatch = e.phone.replace(/\D/g, '') === idClean.replace(/\D/g, '');
-      return emailMatch || nameMatch || phoneMatch;
+      const emailMatch = e.email ? e.email.toLowerCase() === idClean : false;
+      const nameMatch = e.name ? e.name.toLowerCase() === idClean : false;
+      const phoneMatch = e.phone ? e.phone.replace(/\D/g, '') === idClean.replace(/\D/g, '') : false;
+      const idMatch = e.id.toLowerCase() === idClean;
+      return emailMatch || nameMatch || phoneMatch || idMatch;
     });
 
     if (!matched) {
-      return { success: false, message: 'No employee account matches that email or name.' };
+      return { success: false, message: 'Invalid credentials. Please verify your details.' };
     }
 
     if (matched.status === 'suspended') {
@@ -1282,13 +1336,16 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
     }
 
+    const matchedPassword = matched.password !== undefined && matched.password !== null ? String(matched.password).trim() : '';
+    const matchedPin = matched.pin !== undefined && matched.pin !== null ? String(matched.pin).trim() : '';
+
     const isMatch =
-      (matched.password && matched.password === passClean) ||
-      (matched.pin && matched.pin === passClean) ||
-      (!matched.password && !matched.pin && (passClean === 'password' || passClean === '1234'));
+      (matchedPassword && matchedPassword === passClean) ||
+      (matchedPin && matchedPin === passClean) ||
+      (!matchedPassword && !matchedPin && (passClean === 'password' || passClean === '1234'));
 
     if (!isMatch) {
-      return { success: false, message: 'Incorrect password or PIN. Please try again.' };
+      return { success: false, message: 'Invalid credentials. Please verify your details.' };
     }
 
     const updatedUser: Employee = {
@@ -1335,13 +1392,12 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const unlockScreen = (pin: string): { success: boolean; message?: string } => {
-    const cleanPin = pin.trim();
+    const cleanPin = String(pin).trim();
     if (!currentUser) {
       return loginWithPin(cleanPin);
     }
-    const isMatch =
-      (currentUser.pin && currentUser.pin === cleanPin) ||
-      (!currentUser.pin && cleanPin === '1234');
+    const currentPin = currentUser.pin !== undefined && currentUser.pin !== null ? String(currentUser.pin).trim() : '1234';
+    const isMatch = currentPin === cleanPin;
     if (isMatch) {
       setIsScreenLocked(false);
       return { success: true };

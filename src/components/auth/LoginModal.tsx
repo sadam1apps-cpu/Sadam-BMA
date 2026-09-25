@@ -16,6 +16,8 @@ import {
   X,
   RefreshCw,
   Plus,
+  ShieldAlert,
+  LogOut,
 } from 'lucide-react';
 
 interface LoginModalProps {
@@ -45,17 +47,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   } = useBusiness();
 
   const [activeTab, setActiveTab] = useState<'pin' | 'password'>('pin');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(
-    currentUser?.id || employees[0]?.id || ''
-  );
   const [pinInput, setPinInput] = useState<string>('');
+  const [staffIdentifier, setStaffIdentifier] = useState<string>('');
+  const [showIdentifierInput, setShowIdentifierInput] = useState<boolean>(false);
   const [emailInput, setEmailInput] = useState<string>('');
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successAnimation, setSuccessAnimation] = useState<boolean>(false);
+  const [successUser, setSuccessUser] = useState<string | null>(null);
 
-  // Initial owner setup if employee sheet is completely empty
+  // Rate-limiting / brute-force lockout defense
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
+
+  // Initial owner setup if employee database is empty
   const [showOwnerSetup, setShowOwnerSetup] = useState(false);
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -64,19 +70,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   const hiddenPinInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync selected staff if employees change
+  // Countdown timer for brute-force rate-limiting
   useEffect(() => {
-    if (!selectedStaffId && employees.length > 0) {
-      setSelectedStaffId(employees[0].id);
-    }
-  }, [employees, selectedStaffId]);
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev <= 1) {
+          setErrorMessage(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
 
   // Keep hidden input focused for physical keyboards
   useEffect(() => {
-    if (activeTab === 'pin' && (employees.length > 0 || isScreenLocked)) {
+    if (activeTab === 'pin' && (employees.length > 0 || isScreenLocked) && lockoutSeconds <= 0) {
       hiddenPinInputRef.current?.focus();
     }
-  }, [activeTab, isScreenLocked, employees.length]);
+  }, [activeTab, isScreenLocked, employees.length, lockoutSeconds]);
 
   const handleTabChange = (tab: 'pin' | 'password') => {
     setActiveTab(tab);
@@ -84,10 +98,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setPinInput('');
   };
 
-  const selectedStaff = employees.find((e) => e.id === selectedStaffId) || employees[0];
-
   const handleKeypadPress = (val: string) => {
+    if (lockoutSeconds > 0) return;
     setErrorMessage(null);
+
     if (val === 'backspace') {
       setPinInput((prev) => prev.slice(0, -1));
     } else if (val === 'clear') {
@@ -101,69 +115,95 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (lockoutSeconds > 0) return;
+    if (e.key === 'Backspace') {
+      setPinInput((prev) => prev.slice(0, -1));
+    } else if (e.key === 'Escape' || e.key === 'Delete') {
+      setPinInput('');
+    } else if (/^[0-9]$/.test(e.key) && pinInput.length < 4) {
+      const nextPin = pinInput + e.key;
+      setPinInput(nextPin);
+      if (nextPin.length === 4) {
+        submitPin(nextPin);
+      }
+    }
+  };
+
+  const handleAuthFailure = (msg: string) => {
+    setPinInput('');
+    const nextAttempts = failedAttempts + 1;
+    setFailedAttempts(nextAttempts);
+
+    if (nextAttempts >= 5) {
+      setLockoutSeconds(30);
+      setErrorMessage('Too many failed attempts. Terminal locked for 30s for security.');
+    } else {
+      setErrorMessage(msg);
+    }
+  };
+
   const submitPin = (pinToSubmit = pinInput) => {
+    if (lockoutSeconds > 0) return;
     setErrorMessage(null);
+
     if (!pinToSubmit || pinToSubmit.length < 4) {
-      setErrorMessage('Please enter 4-digit PIN.');
+      setErrorMessage('Please enter 4-digit staff PIN.');
       return;
     }
 
+    // Locked Terminal Screen Mode
     if (isScreenLocked && currentUser) {
       const res = unlockScreen(pinToSubmit);
       if (res.success) {
+        setFailedAttempts(0);
         setSuccessAnimation(true);
+        setSuccessUser(currentUser.name);
         setTimeout(() => {
           setSuccessAnimation(false);
+          setSuccessUser(null);
           if (onClose) onClose();
         }, 350);
       } else {
-        setErrorMessage(res.message || 'Incorrect PIN. Try again.');
-        setPinInput('');
+        handleAuthFailure(res.message || 'Incorrect PIN. Try again.');
       }
       return;
     }
 
-    const res = loginWithPin(pinToSubmit, selectedStaff?.id);
+    // Secure PIN Authentication without public user enumeration
+    const identifier = staffIdentifier.trim() || undefined;
+    const res = loginWithPin(pinToSubmit, identifier);
+
     if (res.success) {
+      setFailedAttempts(0);
       setSuccessAnimation(true);
       setTimeout(() => {
         setSuccessAnimation(false);
         if (onClose) onClose();
       }, 350);
     } else {
-      setErrorMessage(res.message || 'Incorrect PIN. Try again.');
-      setPinInput('');
+      if (res.matchesCount && res.matchesCount > 1) {
+        setShowIdentifierInput(true);
+      }
+      handleAuthFailure(res.message || 'Incorrect PIN. Try again.');
     }
   };
 
   const handlePasswordLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutSeconds > 0) return;
     setErrorMessage(null);
 
     const res = loginWithCredentials(emailInput.trim(), passwordInput);
     if (res.success) {
+      setFailedAttempts(0);
       setSuccessAnimation(true);
       setTimeout(() => {
         setSuccessAnimation(false);
         if (onClose) onClose();
       }, 350);
     } else {
-      setErrorMessage(res.message || 'Invalid email or password.');
-    }
-  };
-
-  const getRoleLabel = (role: UserRole) => {
-    switch (role) {
-      case 'owner':
-        return 'Store Owner';
-      case 'manager':
-        return 'Manager';
-      case 'cashier':
-        return 'Cashier';
-      case 'inventory_clerk':
-        return 'Inventory Clerk';
-      default:
-        return role;
+      handleAuthFailure(res.message || 'Invalid email or password.');
     }
   };
 
@@ -174,9 +214,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-hidden select-none"
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
+      {/* Hidden input to capture physical keyboard strokes on terminal */}
+      <input
+        ref={hiddenPinInputRef}
+        type="password"
+        maxLength={4}
+        value={pinInput}
+        onChange={() => {}}
+        onKeyDown={handleKeyDown}
+        className="opacity-0 pointer-events-none absolute -left-9999px"
+        aria-hidden="true"
+        disabled={lockoutSeconds > 0}
+      />
+
       <div className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col my-auto relative shrink-0">
         
-        {/* Close button (only when modal is optional dialog) */}
+        {/* Optional Close button (only when modal is a dismissible overlay, not login gate) */}
         {!fullScreen && !isScreenLocked && onClose && (
           <button
             type="button"
@@ -188,7 +241,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         )}
 
-        {/* Compact Header */}
+        {/* Professional Header */}
         <div className="bg-slate-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -201,21 +254,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </h2>
                 <p className="text-[11px] text-slate-300 truncate leading-normal">
                   {isScreenLocked
-                    ? `Locked: ${currentUser?.name || 'Staff'}`
-                    : 'Sign in to access POS & inventory'}
+                    ? `Locked session for ${currentUser?.name || 'Staff'}`
+                    : 'Secure staff authentication'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Protected
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <Shield className="w-3 h-3 text-emerald-400" />
+                <span>Protected</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Auth Method Tabs (Only when not screen unlock) */}
+        {/* Authentication Mode Switcher (Only when not screen unlock) */}
         {!isScreenLocked && (
           <div className="flex border-b border-slate-200 bg-slate-50 p-1 gap-1 shrink-0">
             <button
@@ -228,7 +282,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               }`}
             >
               <KeyRound className="w-3.5 h-3.5" />
-              <span>PIN</span>
+              <span>Quick PIN</span>
             </button>
             <button
               type="button"
@@ -245,61 +299,80 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         )}
 
-        {/* Inline Feedback Alerts */}
+        {/* Security / Error Alerts */}
         {errorMessage && (
-          <div className="mx-4 mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 flex items-center gap-2 text-rose-800 text-xs shrink-0">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-            <div className="font-medium truncate">{errorMessage}</div>
+          <div className="mx-4 mt-2.5 p-2 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-800 text-xs shrink-0 animate-fadeIn">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="font-medium leading-relaxed">{errorMessage}</div>
+          </div>
+        )}
+
+        {lockoutSeconds > 0 && (
+          <div className="mx-4 mt-2.5 p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs shrink-0">
+            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="font-semibold">
+              Security lockout active: Retry in <strong>{lockoutSeconds}s</strong>
+            </div>
           </div>
         )}
 
         {successAnimation && (
-          <div className="mx-4 mt-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-emerald-800 text-xs animate-pulse shrink-0">
+          <div className="mx-4 mt-2.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-emerald-800 text-xs animate-pulse shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <div className="font-semibold">Access Granted. Loading session...</div>
+            <div className="font-semibold">
+              {successUser ? `Access Granted: ${successUser}` : 'Access Granted. Entering session...'}
+            </div>
           </div>
         )}
 
-        {/* Content Container (No Scroll) */}
+        {/* Content Container (Tailored for zero scroll on all screens) */}
         <div className="p-3 sm:p-4 flex-1 flex flex-col justify-center">
 
-          {/* ZERO EMPLOYEES / EMPTY DATABASE STATE */}
-          {employees.length === 0 && !showOwnerSetup && (
-            <div className="text-center py-3 space-y-2.5">
+          {/* CONNECTING / SYNCHRONIZING WITH DATABASE */}
+          {employees.length === 0 && sheetsSyncStatus === 'syncing' && (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs">
+                <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                  Connecting to Secure Database
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto">
+                  Synchronizing staff credentials and security profiles. Please wait a moment...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* EMPTY DATABASE STATE (Only after sync finished and no records exist) */}
+          {employees.length === 0 && sheetsSyncStatus !== 'syncing' && !showOwnerSetup && (
+            <div className="text-center py-4 space-y-2.5">
               <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
-                {sheetsSyncStatus === 'syncing' ? (
-                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-600" />
-                ) : (
-                  <Shield className="w-5 h-5 text-slate-600" />
-                )}
+                <Shield className="w-5 h-5 text-slate-600" />
               </div>
               <div>
                 <h3 className="text-xs font-bold text-slate-900">
-                  {sheetsSyncStatus === 'syncing'
-                    ? 'Connecting to database...'
-                    : 'No staff accounts configured'}
+                  No staff accounts configured
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  {sheetsSyncStatus === 'syncing'
-                    ? 'Retrieving employee records from spreadsheet...'
-                    : 'Initialize your store owner account to get started.'}
+                  Initialize your store owner account to get started with full administrative privileges.
                 </p>
               </div>
 
-              <div className="flex items-center justify-center gap-2 pt-1">
+              <div className="flex items-center justify-center gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => syncFromSheets()}
-                  disabled={sheetsSyncStatus === 'syncing'}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <RefreshCw className={`w-3 h-3 ${sheetsSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                  <RefreshCw className="w-3 h-3" />
                   <span>Sync</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowOwnerSetup(true)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Create Owner</span>
@@ -310,18 +383,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
           {/* INITIAL OWNER REGISTRATION (If DB is empty) */}
           {employees.length === 0 && showOwnerSetup && (
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
                 <span className="font-bold text-slate-900">Initialize Store Owner</span>
                 <button
                   type="button"
                   onClick={() => setShowOwnerSetup(false)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Full Name</label>
                   <input
@@ -330,7 +403,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={ownerName}
                     onChange={(e) => setOwnerName(e.target.value)}
                     placeholder="Alex Mercer"
-                    className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -341,7 +414,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={ownerEmail}
                     onChange={(e) => setOwnerEmail(e.target.value)}
                     placeholder="owner@store.com"
-                    className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -352,7 +425,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={ownerPin}
                     onChange={(e) => setOwnerPin(e.target.value.replace(/\D/g, ''))}
                     placeholder="1234"
-                    className="w-full px-2 py-1 text-xs font-mono border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -362,7 +435,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={ownerPassword}
                     onChange={(e) => setOwnerPassword(e.target.value)}
                     placeholder="Password"
-                    className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -392,48 +465,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 }}
                 className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs cursor-pointer mt-1"
               >
-                Save &amp; Enter
+                Save &amp; Enter Terminal
               </button>
             </div>
           )}
 
-          {/* TAB 1: QUICK PIN AUTHENTICATION */}
+          {/* TAB 1: SECURE QUICK PIN TERMINAL (NO PUBLIC DROPDOWN) */}
           {(employees.length > 0 || isScreenLocked) && activeTab === 'pin' && (
             <div className="space-y-2.5">
               
-              {/* Staff Selector (compact dropdown, takes ~36px height) */}
-              {!isScreenLocked ? (
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                    {selectedStaff?.name?.slice(0, 2)?.toUpperCase() || 'ST'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[9px] uppercase font-bold text-slate-400 tracking-wider leading-none mb-0.5">
-                      Employee
-                    </div>
-                    <select
-                      value={selectedStaffId}
-                      onChange={(e) => {
-                        setSelectedStaffId(e.target.value);
-                        setPinInput('');
-                        setErrorMessage(null);
-                      }}
-                      className="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer py-0 border-none truncate"
-                    >
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({getRoleLabel(emp.role)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs text-amber-900">
+              {/* Screen Lock Status Banner */}
+              {isScreenLocked && currentUser && (
+                <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900">
                   <div className="flex items-center gap-2 truncate">
                     <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                     <span className="truncate">
-                      Session locked for <strong className="font-bold">{currentUser?.name}</strong>
+                      Session locked for <strong className="font-bold">{currentUser.name}</strong>
                     </span>
                   </div>
                   <button
@@ -441,84 +488,146 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     onClick={() => {
                       logout();
                       setPinInput('');
+                      setErrorMessage(null);
                     }}
-                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 underline cursor-pointer shrink-0 ml-2"
+                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 flex items-center gap-1 cursor-pointer shrink-0 ml-2"
+                    title="Log out active session and switch user"
                   >
-                    Switch
+                    <LogOut className="w-3 h-3" />
+                    <span>Switch</span>
                   </button>
                 </div>
               )}
 
-              {/* Masked PIN Indicator */}
-              <div className="flex justify-center items-center gap-3 py-1">
-                {[0, 1, 2, 3].map((idx) => {
-                  const filled = pinInput.length > idx;
-                  return (
-                    <div
-                      key={idx}
-                      className={`w-3 h-3 rounded-full transition-all duration-150 ${
-                        filled
-                          ? 'bg-indigo-600 scale-125 shadow-xs'
-                          : 'bg-slate-200 border border-slate-300'
-                      }`}
+              {/* Optional Staff Identifier Input (Used when PIN is ambiguous or for extra security) */}
+              {!isScreenLocked && showIdentifierInput && (
+                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 animate-fadeIn">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Work Email or Username (Optional)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowIdentifierInput(false);
+                        setStaffIdentifier('');
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-slate-600"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={staffIdentifier}
+                      onChange={(e) => setStaffIdentifier(e.target.value)}
+                      placeholder="e.g. sarah.j@store.com or staff ID"
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                     />
-                  );
-                })}
+                  </div>
+                </div>
+              )}
+
+              {/* Masked PIN Indicators */}
+              <div className="flex flex-col items-center justify-center py-1">
+                <div className="flex items-center gap-3.5">
+                  {[0, 1, 2, 3].map((idx) => {
+                    const filled = pinInput.length > idx;
+                    return (
+                      <div
+                        key={idx}
+                        className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
+                          filled
+                            ? 'bg-indigo-600 scale-110 shadow-xs'
+                            : 'bg-slate-200 border border-slate-300'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium mt-1">
+                  Enter 4-digit staff security PIN
+                </div>
               </div>
 
-              {/* Hidden input to capture physical keyboard input */}
-              <input
-                ref={hiddenPinInputRef}
-                type="password"
-                maxLength={4}
-                value={pinInput}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '');
-                  setPinInput(val);
-                  if (val.length === 4) {
-                    submitPin(val);
-                  }
-                }}
-                className="opacity-0 absolute -z-10 pointer-events-none w-0 h-0"
-                autoFocus
-              />
-
-              {/* Compact Numeric Keypad */}
-              <div className="grid grid-cols-3 gap-1.5 w-full max-w-[240px] mx-auto">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map((key) => (
+              {/* Responsive 3x4 Touch Keypad */}
+              <div className="grid grid-cols-3 gap-1.5 max-w-[280px] mx-auto w-full">
+                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                   <button
-                    key={key}
+                    key={digit}
                     type="button"
-                    onClick={() => handleKeypadPress(key === 'C' ? 'clear' : key === '⌫' ? 'backspace' : key)}
-                    className={`h-9 sm:h-10 rounded-xl font-bold text-sm transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
-                      key === 'C' || key === '⌫'
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs'
-                        : 'bg-white hover:bg-indigo-50 border border-slate-200 text-slate-800 hover:text-indigo-700 shadow-2xs'
-                    }`}
+                    disabled={lockoutSeconds > 0}
+                    onClick={() => handleKeypadPress(digit)}
+                    className="h-10 sm:h-11 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100 text-slate-800 text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
                   >
-                    {key}
+                    {digit}
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  disabled={lockoutSeconds > 0}
+                  onClick={() => handleKeypadPress('clear')}
+                  className="h-10 sm:h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                >
+                  Clear
+                </button>
+
+                <button
+                  type="button"
+                  disabled={lockoutSeconds > 0}
+                  onClick={() => handleKeypadPress('0')}
+                  className="h-10 sm:h-11 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100 text-slate-800 text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 shadow-2xs"
+                >
+                  0
+                </button>
+
+                <button
+                  type="button"
+                  disabled={lockoutSeconds > 0}
+                  onClick={() => handleKeypadPress('backspace')}
+                  className="h-10 sm:h-11 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                  aria-label="Backspace"
+                >
+                  ⌫
+                </button>
               </div>
 
-              {/* Sign In / Unlock Button */}
-              <button
-                type="button"
-                onClick={() => submitPin()}
-                className="w-full py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-              >
-                <span>{isScreenLocked ? 'Unlock Terminal' : 'Sign In'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {/* Submit Action & Optional Disambiguation Link */}
+              <div className="space-y-1.5 pt-0.5">
+                <button
+                  type="button"
+                  disabled={lockoutSeconds > 0 || pinInput.length < 4}
+                  onClick={() => submitPin()}
+                  className="w-full py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>{isScreenLocked ? 'Unlock Terminal' : 'Sign In'}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                {!isScreenLocked && !showIdentifierInput && (
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowIdentifierInput(true)}
+                      className="text-[10px] text-slate-400 hover:text-indigo-600 font-medium transition-colors cursor-pointer"
+                    >
+                      Multiple staff on this terminal? Specify Work Email
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* TAB 2: PASSWORD AUTHENTICATION */}
+          {/* TAB 2: STANDARD EMAIL & PASSWORD AUTHENTICATION */}
           {employees.length > 0 && !isScreenLocked && activeTab === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-3 py-1">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Email or Username
+                  Work Email or Username
                 </label>
                 <div className="relative">
                   <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -527,8 +636,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="staff@company.com"
-                    className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="e.g. staff@company.com"
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                   />
                 </div>
               </div>
@@ -544,13 +653,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="Enter password"
-                    className="w-full pl-8 pr-8 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="Enter account password"
+                    className="w-full pl-8 pr-8 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -559,7 +668,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] mt-1"
+                disabled={lockoutSeconds > 0}
+                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Sign In</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -569,10 +679,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         </div>
 
-        {/* Security Footer */}
+        {/* Professional Security Guarantee Footer */}
         <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 text-center flex items-center justify-center gap-1.5 text-[10px] text-slate-400 shrink-0">
           <Shield className="w-3 h-3 text-indigo-500" />
-          <span>Protected Terminal Access • 256-bit Session Security</span>
+          <span>Protected POS Access • Anti-Enumeration Terminal Security</span>
         </div>
 
       </div>
