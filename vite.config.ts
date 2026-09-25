@@ -4,14 +4,21 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
+// Auto version: uses build date + short git-ish timestamp
+const BUILD_VERSION = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 export default defineConfig(() => {
   return {
     base: '/',
+    define: {
+      __APP_VERSION__: JSON.stringify(BUILD_VERSION),
+    },
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
+        injectRegister: null,
         includeAssets: [
           'favicon.ico',
           'apple-icon-180x180.png',
@@ -41,6 +48,8 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           cleanupOutdatedCaches: true,
+          skipWaiting: false,
+          clientsClaim: true,
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [

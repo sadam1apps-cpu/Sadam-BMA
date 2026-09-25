@@ -57,11 +57,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [successAnimation, setSuccessAnimation] = useState<boolean>(false);
   const [successUser, setSuccessUser] = useState<string | null>(null);
 
-  // Rate-limiting / brute-force lockout defense
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(0);
 
-  // Initial owner setup if employee database is empty
   const [showOwnerSetup, setShowOwnerSetup] = useState(false);
   const [ownerName, setOwnerName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -70,7 +68,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   const hiddenPinInputRef = useRef<HTMLInputElement>(null);
 
-  // Countdown timer for brute-force rate-limiting
   useEffect(() => {
     if (lockoutSeconds <= 0) return;
     const timer = setInterval(() => {
@@ -85,7 +82,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     return () => clearInterval(timer);
   }, [lockoutSeconds]);
 
-  // Keep hidden input focused for physical keyboards
   useEffect(() => {
     if (activeTab === 'pin' && (employees.length > 0 || isScreenLocked) && lockoutSeconds <= 0) {
       hiddenPinInputRef.current?.focus();
@@ -152,7 +148,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Locked Terminal Screen Mode
     if (isScreenLocked && currentUser) {
       const res = unlockScreen(pinToSubmit);
       if (res.success) {
@@ -170,7 +165,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Secure PIN Authentication without public user enumeration
     const identifier = staffIdentifier.trim() || undefined;
     const res = loginWithPin(pinToSubmit, identifier);
 
@@ -214,7 +208,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-hidden select-none"
       style={{ height: '100dvh', maxHeight: '100dvh' }}
     >
-      {/* Hidden input to capture physical keyboard strokes on terminal */}
       <input
         ref={hiddenPinInputRef}
         type="password"
@@ -229,7 +222,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       <div className="w-full max-w-sm sm:max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col my-auto relative shrink-0">
         
-        {/* Optional Close button (only when modal is a dismissible overlay, not login gate) */}
         {!fullScreen && !isScreenLocked && onClose && (
           <button
             type="button"
@@ -241,7 +233,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         )}
 
-        {/* Professional Header */}
         <div className="bg-slate-900 text-white px-4 py-3 sm:px-5 sm:py-3.5 relative overflow-hidden shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -269,7 +260,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         </div>
 
-        {/* Authentication Mode Switcher (Only when not screen unlock) */}
         {!isScreenLocked && (
           <div className="flex border-b border-slate-200 bg-slate-50 p-1 gap-1 shrink-0">
             <button
@@ -299,7 +289,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         )}
 
-        {/* Security / Error Alerts */}
         {errorMessage && (
           <div className="mx-4 mt-2.5 p-2 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-800 text-xs shrink-0 animate-fadeIn">
             <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
@@ -325,10 +314,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         )}
 
-        {/* Content Container (Tailored for zero scroll on all screens) */}
         <div className="p-3 sm:p-4 flex-1 flex flex-col justify-center">
 
-          {/* CONNECTING / SYNCHRONIZING WITH DATABASE */}
           {employees.length === 0 && sheetsSyncStatus === 'syncing' && (
             <div className="text-center py-6 space-y-3">
               <div className="w-12 h-12 mx-auto rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-xs">
@@ -345,7 +332,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* EMPTY DATABASE STATE (Only after sync finished and no records exist) */}
           {employees.length === 0 && sheetsSyncStatus !== 'syncing' && !showOwnerSetup && (
             <div className="text-center py-4 space-y-2.5">
               <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
@@ -381,7 +367,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* INITIAL OWNER REGISTRATION (If DB is empty) */}
           {employees.length === 0 && showOwnerSetup && (
             <div className="space-y-2.5 text-xs">
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
@@ -470,11 +455,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* TAB 1: SECURE QUICK PIN TERMINAL (NO PUBLIC DROPDOWN) */}
           {(employees.length > 0 || isScreenLocked) && activeTab === 'pin' && (
             <div className="space-y-2.5">
               
-              {/* Screen Lock Status Banner */}
               {isScreenLocked && currentUser && (
                 <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 text-xs text-amber-900">
                   <div className="flex items-center gap-2 truncate">
@@ -499,7 +482,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               )}
 
-              {/* Optional Staff Identifier Input (Used when PIN is ambiguous or for extra security) */}
               {!isScreenLocked && showIdentifierInput && (
                 <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 animate-fadeIn">
                   <div className="flex items-center justify-between mb-1">
@@ -530,7 +512,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               )}
 
-              {/* Masked PIN Indicators */}
               <div className="flex flex-col items-center justify-center py-1">
                 <div className="flex items-center gap-3.5">
                   {[0, 1, 2, 3].map((idx) => {
@@ -552,7 +533,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               </div>
 
-              {/* Responsive 3x4 Touch Keypad */}
               <div className="grid grid-cols-3 gap-1.5 max-w-[280px] mx-auto w-full">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                   <button
@@ -595,7 +575,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </button>
               </div>
 
-              {/* Submit Action & Optional Disambiguation Link */}
               <div className="space-y-1.5 pt-0.5">
                 <button
                   type="button"
@@ -622,7 +601,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: STANDARD EMAIL & PASSWORD AUTHENTICATION */}
           {employees.length > 0 && !isScreenLocked && activeTab === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-3 py-1">
               <div>
@@ -679,10 +657,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         </div>
 
-        {/* Professional Security Guarantee Footer */}
-        <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 text-center flex items-center justify-center gap-1.5 text-[10px] text-slate-400 shrink-0">
-          <Shield className="w-3 h-3 text-indigo-500" />
-          <span>Protected POS Access • Anti-Enumeration Terminal Security</span>
+        {/* Professional Security Guarantee Footer with Version */}
+        <div className="bg-slate-50 px-4 py-2 border-t border-slate-100 text-center flex flex-col items-center justify-center gap-0.5 text-[10px] text-slate-400 shrink-0">
+          <div className="flex items-center justify-center gap-1.5">
+            <Shield className="w-3 h-3 text-indigo-500" />
+            <span>Protected POS Access • Anti-Enumeration Terminal Security</span>
+          </div>
+          <span className="text-[9px] text-slate-400">
+            STech GLOBAL LDA · <span className="font-semibold text-slate-500">v{__APP_VERSION__}</span>
+          </span>
         </div>
 
       </div>
