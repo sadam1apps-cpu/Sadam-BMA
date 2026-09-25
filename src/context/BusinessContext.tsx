@@ -48,6 +48,7 @@ interface BusinessContextType {
   sheetsUrl: string;
   setSheetsUrl: (url: string) => void;
   sheetsSyncStatus: SheetsSyncStatus;
+  isInitialSyncLoading: boolean;
   lastSyncedAt: string | null;
   syncError: string | null;
   spreadsheetTitle: string | null;
@@ -325,7 +326,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`) ||
       localStorage.getItem('biz_mgr_data_v1_sheetsUrl') ||
       localStorage.getItem('biz_mgr_v1_sheetsUrl');
-    return savedUrl ? 'connected' : 'disconnected';
+    return savedUrl ? 'syncing' : 'disconnected';
+  });
+  const [isInitialSyncLoading, setIsInitialSyncLoading] = useState<boolean>(() => {
+    const savedUrl =
+      envSheetsUrl ||
+      localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`) ||
+      localStorage.getItem('biz_mgr_data_v1_sheetsUrl') ||
+      localStorage.getItem('biz_mgr_v1_sheetsUrl');
+    return Boolean(savedUrl && savedUrl.trim());
   });
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     return (
@@ -399,7 +408,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const syncFromSheets = async (): Promise<boolean> => {
-    if (!sheetsUrl || !sheetsUrl.trim()) return false;
+    if (!sheetsUrl || !sheetsUrl.trim()) {
+      setIsInitialSyncLoading(false);
+      return false;
+    }
     setSheetsSyncStatus('syncing');
     setSyncError(null);
     try {
@@ -409,14 +421,35 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const d = res.data;
         if (d.products && Array.isArray(d.products)) setProducts(d.products);
         if (d.sales && Array.isArray(d.sales)) setSales(d.sales);
-        if (d.customers && Array.isArray(d.customers)) setCustomers(d.customers);
-        if (d.suppliers && Array.isArray(d.suppliers)) setSuppliers(d.suppliers);
+        if (d.customers && Array.isArray(d.customers)) {
+          setCustomers(
+            d.customers.map((c) => ({
+              ...c,
+              name: c.name !== undefined && c.name !== null ? String(c.name) : '',
+              phone: c.phone !== undefined && c.phone !== null ? String(c.phone).trim() : '',
+              email: c.email !== undefined && c.email !== null ? String(c.email).trim() : '',
+            }))
+          );
+        }
+        if (d.suppliers && Array.isArray(d.suppliers)) {
+          setSuppliers(
+            d.suppliers.map((s) => ({
+              ...s,
+              companyName: s.companyName !== undefined && s.companyName !== null ? String(s.companyName) : '',
+              contactPerson: s.contactPerson !== undefined && s.contactPerson !== null ? String(s.contactPerson) : '',
+              phone: s.phone !== undefined && s.phone !== null ? String(s.phone).trim() : '',
+            }))
+          );
+        }
         if (d.expenses && Array.isArray(d.expenses)) setExpenses(d.expenses);
         if (d.accounts && Array.isArray(d.accounts)) setAccounts(d.accounts);
         if (d.stockMovements && Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements);
         if (d.employees && Array.isArray(d.employees)) {
           const normalizedEmployees: Employee[] = d.employees.map((emp) => ({
             ...emp,
+            name: emp.name !== undefined && emp.name !== null ? String(emp.name).trim() : '',
+            email: emp.email !== undefined && emp.email !== null ? String(emp.email).trim() : '',
+            phone: emp.phone !== undefined && emp.phone !== null ? String(emp.phone).trim() : '',
             pin: emp.pin !== undefined && emp.pin !== null ? String(emp.pin).trim() : '1234',
             password: emp.password !== undefined && emp.password !== null ? String(emp.password).trim() : 'password',
           }));
@@ -443,6 +476,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLastSyncedAt(nowStr);
         localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
         setSheetsSyncStatus('connected');
+        setIsInitialSyncLoading(false);
         refreshQuotaStats();
         setTimeout(() => {
           isSyncingFromSheetsRef.current = false;
@@ -451,6 +485,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } else {
         setSheetsSyncStatus('error');
         setSyncError(res.message || 'Failed to pull data from Google Sheets.');
+        setIsInitialSyncLoading(false);
         isSyncingFromSheetsRef.current = false;
         refreshQuotaStats();
         return false;
@@ -458,6 +493,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (err: any) {
       setSheetsSyncStatus('error');
       setSyncError(err.message || 'Network failure while syncing from Google Sheets.');
+      setIsInitialSyncLoading(false);
       isSyncingFromSheetsRef.current = false;
       refreshQuotaStats();
       return false;
@@ -1238,9 +1274,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (identifierOrId && identifierOrId.trim()) {
       const cleanIdent = identifierOrId.trim().toLowerCase();
       matched = employees.find((e) => {
-        const idMatch = e.id.toLowerCase() === cleanIdent;
-        const emailMatch = e.email ? e.email.toLowerCase() === cleanIdent : false;
-        const nameMatch = e.name ? e.name.toLowerCase() === cleanIdent : false;
+        const idMatch = e.id ? String(e.id).toLowerCase() === cleanIdent : false;
+        const emailMatch = e.email ? String(e.email).toLowerCase() === cleanIdent : false;
+        const nameMatch = e.name ? String(e.name).toLowerCase() === cleanIdent : false;
         const empPin = e.pin !== undefined && e.pin !== null ? String(e.pin).trim() : '1234';
         const pinMatch = empPin === cleanPin;
         return (idMatch || emailMatch || nameMatch) && pinMatch;
@@ -1318,10 +1354,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     const matched = employees.find((e) => {
-      const emailMatch = e.email ? e.email.toLowerCase() === idClean : false;
-      const nameMatch = e.name ? e.name.toLowerCase() === idClean : false;
-      const phoneMatch = e.phone ? e.phone.replace(/\D/g, '') === idClean.replace(/\D/g, '') : false;
-      const idMatch = e.id.toLowerCase() === idClean;
+      const emailMatch = e.email ? String(e.email).toLowerCase() === idClean : false;
+      const nameMatch = e.name ? String(e.name).toLowerCase() === idClean : false;
+      const phoneStr = e.phone !== undefined && e.phone !== null ? String(e.phone).trim() : '';
+      const phoneDigits = phoneStr.replace(/\D/g, '');
+      const idDigits = idClean.replace(/\D/g, '');
+      const phoneMatch = phoneDigits && idDigits ? phoneDigits === idDigits : false;
+      const idMatch = e.id ? String(e.id).toLowerCase() === idClean : false;
       return emailMatch || nameMatch || phoneMatch || idMatch;
     });
 
@@ -1461,6 +1500,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         sheetsUrl,
         setSheetsUrl,
         sheetsSyncStatus,
+        isInitialSyncLoading,
         lastSyncedAt,
         syncError,
         spreadsheetTitle,

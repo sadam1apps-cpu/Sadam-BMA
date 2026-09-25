@@ -30,9 +30,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
   const filteredCustomers = customers.filter((c) => {
     const matchesSearch =
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone.includes(searchTerm) ||
-      (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase()));
+      (c.name && String(c.name).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      String(c.phone || '').includes(searchTerm) ||
+      (c.email && String(c.email).toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesDebt = filter === 'all' ? true : c.outstandingDebt > 0;
     return matchesSearch && matchesDebt;

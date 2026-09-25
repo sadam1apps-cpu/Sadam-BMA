@@ -20,9 +20,10 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
 
   const filteredSuppliers = suppliers.filter(
     (s) =>
-      s.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.category.toLowerCase().includes(searchTerm.toLowerCase())
+      (s.companyName && String(s.companyName).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.contactPerson && String(s.contactPerson).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.category && String(s.category).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      String(s.phone || '').includes(searchTerm)
   );
 
   const pageSize = 5;
