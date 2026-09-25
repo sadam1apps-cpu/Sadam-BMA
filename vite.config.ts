@@ -6,7 +6,7 @@ import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
-    base: '/Sadam-BMA/',
+    base: '/',
     plugins: [
       react(),
       tailwindcss(),
@@ -25,24 +25,24 @@ export default defineConfig(() => {
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'portrait',
-          scope: '/Sadam-BMA/',
-          start_url: '/Sadam-BMA/',
+          scope: '/',
+          start_url: '/',
           icons: [
-            { src: '/Sadam-BMA/android-icon-36x36.png', sizes: '36x36', type: 'image/png' },
-            { src: '/Sadam-BMA/android-icon-48x48.png', sizes: '48x48', type: 'image/png' },
-            { src: '/Sadam-BMA/android-icon-72x72.png', sizes: '72x72', type: 'image/png' },
-            { src: '/Sadam-BMA/android-icon-96x96.png', sizes: '96x96', type: 'image/png' },
-            { src: '/Sadam-BMA/android-icon-144x144.png', sizes: '144x144', type: 'image/png' },
-            { src: '/Sadam-BMA/android-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-            { src: '/Sadam-BMA/android-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-            { src: '/Sadam-BMA/android-icon-192x192.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+            { src: '/android-icon-36x36.png', sizes: '36x36', type: 'image/png' },
+            { src: '/android-icon-48x48.png', sizes: '48x48', type: 'image/png' },
+            { src: '/android-icon-72x72.png', sizes: '72x72', type: 'image/png' },
+            { src: '/android-icon-96x96.png', sizes: '96x96', type: 'image/png' },
+            { src: '/android-icon-144x144.png', sizes: '144x144', type: 'image/png' },
+            { src: '/android-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: '/android-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/android-icon-192x192.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           cleanupOutdatedCaches: true,
-          navigateFallback: '/Sadam-BMA/index.html',
-          navigateFallbackDenylist: [/^\/Sadam-BMA\/api/],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api/],
           runtimeCaching: [
             {
               urlPattern: ({url}) => url.hostname.includes('script.google.com'),
