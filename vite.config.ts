@@ -48,7 +48,7 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
           cleanupOutdatedCaches: true,
-          skipWaiting: false,
+          skipWaiting: true,
           clientsClaim: true,
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api/],

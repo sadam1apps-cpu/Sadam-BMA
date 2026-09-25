@@ -1,8 +1,9 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {useRegisterSW} from 'virtual:pwa-register/react';
 
 export default function UpdatePrompt() {
   const [reloading, setReloading] = useState(false);
+  const reloadTimer = useRef<number | null>(null);
 
   const {
     needRefresh: [needRefresh],
@@ -10,9 +11,9 @@ export default function UpdatePrompt() {
   } = useRegisterSW({
     onRegisteredSW(_swUrl, r) {
       if (!r) return;
-      // Check for updates every 5 minutes while app is open
+      // Poll for updates every 5 minutes
       setInterval(() => r.update(), 5 * 60 * 1000);
-      // And when tab regains focus
+      // And when the tab regains focus
       const onFocus = () => r.update();
       window.addEventListener('focus', onFocus);
       // And every 30 minutes
@@ -26,12 +27,29 @@ export default function UpdatePrompt() {
     el?.focus();
   }, [needRefresh]);
 
+  // Safety net: if reload stalls > 4s, force-reload anyway
+  useEffect(() => {
+    if (!reloading) return;
+    reloadTimer.current = window.setTimeout(() => {
+      window.location.reload();
+    }, 4000);
+    return () => {
+      if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
+    };
+  }, [reloading]);
+
   const handleUpdate = async () => {
+    if (reloading) return;
     setReloading(true);
     try {
-      await updateServiceWorker(true); // waits + reloads
+      // Activates the new SW and, when it takes control, reloads the page.
+      await updateServiceWorker(true);
+      // Fallback in case updateServiceWorker never resolves but SW is active:
+      if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
+      window.location.reload();
     } catch {
-      setReloading(false);
+      // Even on error, force reload so user isn't stuck.
+      window.location.reload();
     }
   };
 
