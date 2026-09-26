@@ -6,7 +6,6 @@ import {
   Shield,
   Plus,
   Store,
-  RotateCcw,
   CheckCircle2,
   ChevronDown,
   FileSpreadsheet,
@@ -34,11 +33,8 @@ export const Header: React.FC<HeaderProps> = ({
     currentRole,
     permissions,
     alerts,
-    resetDemoData,
     sheetsSyncStatus,
-    sheetsUrl,
     setActiveNavTab,
-    syncFromSheets,
     currentUser,
     logout,
     lockScreen,
@@ -46,7 +42,6 @@ export const Header: React.FC<HeaderProps> = ({
   } = useBusiness();
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
   const unreadAlertsCount = alerts.filter((a) => !a.read).length;
@@ -268,51 +263,6 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Reset Demo Data Button */}
-            <div className="relative">
-              <button
-                id="reset-demo-btn"
-                type="button"
-                onClick={() => setShowResetConfirm(true)}
-                className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors border border-transparent hover:border-slate-700 cursor-pointer"
-                title="Reset demo data"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset Demo</span>
-              </button>
-
-              {showResetConfirm && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowResetConfirm(false)} />
-                  <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-4 z-50 text-slate-200 text-xs">
-                    <p className="font-semibold text-white">Reset Demo Data?</p>
-                    <p className="text-slate-400 mt-1">
-                      Restore starting sales, expenses, and inventory alerts.
-                    </p>
-                    <div className="mt-3 flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowResetConfirm(false)}
-                        className="px-2.5 py-1 text-slate-300 hover:bg-slate-700 rounded-md cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetDemoData();
-                          setShowResetConfirm(false);
-                        }}
-                        className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-md font-medium cursor-pointer"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
             {/* Google Sheets DB Status Indicator (Restricted to Owner/Admin with database privileges) */}
             {(currentRole === 'owner' || permissions.canManageDatabase) && (
               <button
@@ -320,15 +270,19 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={() => setActiveNavTab('settings')}
                 className={`inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                  sheetsSyncStatus === 'connected'
+                  sheetsSyncStatus === 'syncing'
+                    ? 'bg-amber-950/60 border-amber-500/50 text-amber-300 animate-pulse'
+                    : sheetsSyncStatus === 'connected'
                     ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60'
-                    : sheetsSyncStatus === 'syncing'
-                    ? 'bg-amber-950/60 border-amber-500/40 text-amber-300 animate-pulse'
                     : sheetsSyncStatus === 'error'
                     ? 'bg-rose-950/60 border-rose-500/40 text-rose-300 hover:bg-rose-900/60'
                     : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                 }`}
-                title="Google Sheets Database Integration (Click to view sheets, columns & sync)"
+                title={
+                  sheetsSyncStatus === 'syncing'
+                    ? 'Synchronizing data with Google Sheets...'
+                    : 'Google Sheets Database (Click to view settings & sync)'
+                }
               >
                 {sheetsSyncStatus === 'syncing' ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
@@ -343,14 +297,18 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   />
                 )}
-                <span className="hidden md:inline">
-                  {sheetsSyncStatus === 'connected'
-                    ? 'Sheets DB'
-                    : sheetsSyncStatus === 'syncing'
-                    ? 'Syncing...'
-                    : sheetsSyncStatus === 'error'
-                    ? 'Sheets Error'
-                    : 'Sheets DB'}
+                <span>
+                  {sheetsSyncStatus === 'syncing' ? (
+                    'Syncing...'
+                  ) : (
+                    <span className="hidden md:inline">
+                      {sheetsSyncStatus === 'connected'
+                        ? 'Sheets DB'
+                        : sheetsSyncStatus === 'error'
+                        ? 'Sync Error'
+                        : 'Sheets DB'}
+                    </span>
+                  )}
                 </span>
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${

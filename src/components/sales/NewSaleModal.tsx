@@ -42,12 +42,15 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     products,
     customers,
     addSale,
+    addCustomer,
     currentRole,
     permissions,
   } = useBusiness();
 
-  const [customerId, setCustomerId] = useState<string>('cust-7'); // default Walk-in Retail Customer
+  const [customerId, setCustomerId] = useState<string>('walk-in'); // default Walk-in Customer
   const [customCustomerName, setCustomCustomerName] = useState<string>('');
+  const [customCustomerPhone, setCustomCustomerPhone] = useState<string>('');
+  const [saveClientToSystem, setSaveClientToSystem] = useState<boolean>(false);
   const [selectedItems, setSelectedItems] = useState<
     Array<{
       productId: string;
@@ -240,18 +243,37 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     }
 
     // Customer details
-    let finalCustomerName = 'Walk-in Retail Customer';
+    let finalCustomerName = 'Walk-in Customer';
+    let finalCustomerId = '';
     let customerPhone: string | undefined = undefined;
 
     if (customerId === 'new') {
       if (!customCustomerName.trim()) {
-        setErrorMsg('Please enter customer name or select an existing customer.');
+        setErrorMsg('Please enter customer name or select an existing account.');
         return;
       }
       finalCustomerName = customCustomerName.trim();
-    } else {
+      customerPhone = customCustomerPhone.trim() || undefined;
+
+      // Optional: save new client into customer directory
+      if (saveClientToSystem) {
+        try {
+          const newCust = addCustomer({
+            name: finalCustomerName,
+            phone: customerPhone || '',
+            outstandingDebt: 0,
+            creditLimit: 0,
+            notes: 'Registered during sale checkout',
+          });
+          finalCustomerId = newCust.id;
+        } catch (e) {
+          // Continue with empty customerId on error
+        }
+      }
+    } else if (customerId !== 'walk-in') {
       const existing = customers.find((c) => c.id === customerId);
       if (existing) {
+        finalCustomerId = existing.id;
         finalCustomerName = existing.name;
         customerPhone = existing.phone;
       }
@@ -266,7 +288,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     }
 
     const createdSale = addSale({
-      customerId: customerId === 'new' ? '' : customerId,
+      customerId: finalCustomerId,
       customerName: finalCustomerName,
       customerPhone,
       items: invoiceItems,
@@ -282,7 +304,27 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       notes: notes.trim() || undefined,
     });
 
+    // Reset fields to clean default state
+    setCustomerId('walk-in');
+    setCustomCustomerName('');
+    setCustomCustomerPhone('');
+    setSaveClientToSystem(false);
+    setSelectedItems([]);
+    setProductSearchTerm('');
+    setErrorMsg('');
+
     onSaleCreated(createdSale);
+    onClose();
+  };
+
+  const handleClose = () => {
+    setCustomerId('walk-in');
+    setCustomCustomerName('');
+    setCustomCustomerPhone('');
+    setSaveClientToSystem(false);
+    setSelectedItems([]);
+    setProductSearchTerm('');
+    setErrorMsg('');
     onClose();
   };
 
@@ -318,7 +360,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               aria-label="Close modal"
             >
@@ -348,30 +390,63 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               
               {/* Customer Selector */}
               <div className="sm:col-span-6 bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Customer Account
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Customer Account
+                  </label>
+                  {customerId === 'new' && (
+                    <label className="inline-flex items-center gap-1 text-[10px] text-slate-600 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={saveClientToSystem}
+                        onChange={(e) => setSaveClientToSystem(e.target.checked)}
+                        className="w-3 h-3 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <span>Save in System</span>
+                    </label>
+                  )}
+                </div>
+
                 <select
                   value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
+                  onChange={(e) => {
+                    setCustomerId(e.target.value);
+                    if (e.target.value !== 'new') {
+                      setSaveClientToSystem(false);
+                    }
+                  }}
                   className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.outstandingDebt > 0 ? `(Debt: ${profile.currency}${c.outstandingDebt})` : ''}
-                    </option>
-                  ))}
-                  <option value="new">+ Enter New Customer Name</option>
+                  <option value="walk-in">Walk-in Customer (Default)</option>
+                  {customers
+                    .filter((c) => c.id !== 'walk-in' && !c.name.toLowerCase().includes('walk-in'))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.outstandingDebt > 0 ? `(Debt: ${profile.currency}${c.outstandingDebt.toLocaleString()})` : ''}
+                      </option>
+                    ))}
+                  <option value="new">+ Enter Client / One-time</option>
                 </select>
+
                 {customerId === 'new' && (
-                  <input
-                    type="text"
-                    placeholder="Enter customer name..."
-                    value={customCustomerName}
-                    onChange={(e) => setCustomCustomerName(e.target.value)}
-                    className="w-full mt-1 text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-900 focus:ring-1 focus:ring-indigo-500"
-                    required
-                  />
+                  <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 animate-fadeIn">
+                    <input
+                      type="text"
+                      placeholder="Client Name..."
+                      value={customCustomerName}
+                      onChange={(e) => setCustomCustomerName(e.target.value)}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-900 focus:ring-1 focus:ring-indigo-500"
+                      required
+                      autoFocus
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone (optional)..."
+                      value={customCustomerPhone}
+                      onChange={(e) => setCustomCustomerPhone(e.target.value)}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-900 focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
                 )}
               </div>
 

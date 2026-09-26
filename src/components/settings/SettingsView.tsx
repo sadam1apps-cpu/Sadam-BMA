@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { Store, DollarSign, RotateCcw, Check, FileSpreadsheet } from 'lucide-react';
+import { Store, DollarSign, Check, FileSpreadsheet } from 'lucide-react';
 import { SheetsDatabasePanel } from '../sheets/SheetsDatabasePanel';
 
 export const SettingsView: React.FC = () => {
-  const { profile, updateProfile, resetToDemoData, currentRole, permissions } = useBusiness();
+  const { profile, updateProfile, currentRole, permissions } = useBusiness();
   const canAccessDatabase = currentRole === 'owner' || permissions.canManageDatabase;
 
   const [businessName, setBusinessName] = useState(profile.businessName || profile.name);
@@ -244,28 +244,10 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Action Footer */}
-          <div className="bg-white rounded-xl border border-slate-200 p-2 sm:p-3 shadow-2xs flex items-center justify-between shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  confirm(
-                    'Restore fresh demonstration data? This resets products, sample sales, customers, and accounts.'
-                  )
-                ) {
-                  resetToDemoData();
-                }
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden sm:inline">Reset Demo Store Data</span>
-              <span className="sm:hidden">Reset Demo</span>
-            </button>
-
+          <div className="bg-white rounded-xl border border-slate-200 p-2 sm:p-3 shadow-2xs flex items-center justify-end shrink-0">
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
             >
               {saved ? (
                 <>
