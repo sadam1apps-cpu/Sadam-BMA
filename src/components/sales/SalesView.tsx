@@ -28,10 +28,11 @@ export const SalesView: React.FC<SalesViewProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredSales = sales.filter((s) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      s.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.customerPhone && s.customerPhone.includes(searchTerm));
+      String(s.invoiceNumber || '').toLowerCase().includes(term) ||
+      String(s.customerName || '').toLowerCase().includes(term) ||
+      (s.customerPhone && String(s.customerPhone).includes(searchTerm));
 
     const matchesStatus =
       statusFilter === 'all' ? true : s.paymentStatus === statusFilter;

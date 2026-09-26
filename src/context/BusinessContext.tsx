@@ -109,6 +109,9 @@ interface BusinessContextType {
   deleteExpense: (id: string) => boolean;
 
   transferFunds: (fromAccountId: string, toAccountId: string, amount: number, description?: string) => void;
+  addAccount: (accountData: Omit<Account, 'id'>) => Account;
+  updateAccount: (id: string, updates: Partial<Account>) => void;
+  deleteAccount: (id: string) => boolean;
 
   addEmployee: (employeeData: Omit<Employee, 'id' | 'joinedDate'>) => Employee;
   updateEmployee: (id: string, updates: Partial<Employee>) => void;
@@ -191,12 +194,27 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return [];
   });
 
+  const normalizeProduct = (p: any): Product => ({
+    ...p,
+    id: p.id !== undefined && p.id !== null ? String(p.id) : `prod-${Date.now()}`,
+    name: p.name !== undefined && p.name !== null ? String(p.name) : '',
+    sku: p.sku !== undefined && p.sku !== null ? String(p.sku) : '',
+    category: p.category !== undefined && p.category !== null ? String(p.category) : 'General',
+    costPrice: typeof p.costPrice === 'number' ? p.costPrice : parseFloat(p.costPrice) || 0,
+    sellingPrice: typeof p.sellingPrice === 'number' ? p.sellingPrice : parseFloat(p.sellingPrice) || 0,
+    stock: typeof p.stock === 'number' ? p.stock : parseFloat(p.stock) || 0,
+    minStockAlert: typeof p.minStockAlert === 'number' ? p.minStockAlert : parseFloat(p.minStockAlert) || 0,
+    unit: p.unit !== undefined && p.unit !== null ? String(p.unit) : 'pcs',
+    barcode: p.barcode !== undefined && p.barcode !== null && String(p.barcode).trim() !== '' ? String(p.barcode).trim() : undefined,
+    updatedAt: p.updatedAt || new Date().toISOString(),
+  });
+
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}products`);
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeProduct);
       } catch (e) {}
     }
     return [];
@@ -274,10 +292,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return [];
+    return initialAccounts;
   });
 
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
@@ -419,7 +437,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const res = await fetchAllFromSheets(sheetsUrl);
       if (res.success && res.data) {
         const d = res.data;
-        if (d.products && Array.isArray(d.products)) setProducts(d.products);
+        if (d.products && Array.isArray(d.products)) setProducts(d.products.map(normalizeProduct));
         if (d.sales && Array.isArray(d.sales)) setSales(d.sales);
         if (d.customers && Array.isArray(d.customers)) {
           setCustomers(
@@ -852,11 +870,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const addProduct = (productData: Omit<Product, 'id' | 'updatedAt'>): Product => {
     const timestamp = new Date().toISOString();
-    const newProduct: Product = {
+    const newProduct: Product = normalizeProduct({
       ...productData,
       id: `prod-${Date.now()}`,
       updatedAt: timestamp,
-    };
+    });
 
     if (newProduct.stock > 0) {
       setStockMovements((prev) => [
@@ -884,11 +902,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setProducts((prev) =>
       prev.map((p) =>
         p.id === id
-          ? {
+          ? normalizeProduct({
               ...p,
               ...updates,
               updatedAt: new Date().toISOString(),
-            }
+            })
           : p
       )
     );
@@ -1157,6 +1175,27 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       },
       ...prev,
     ]);
+  };
+
+  const addAccount = (accountData: Omit<Account, 'id'>): Account => {
+    const newAccount: Account = {
+      ...accountData,
+      id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setAccounts((prev) => [...prev, newAccount]);
+    return newAccount;
+  };
+
+  const updateAccount = (id: string, updates: Partial<Account>) => {
+    setAccounts((prev) =>
+      prev.map((acc) => (acc.id === id ? { ...acc, ...updates } : acc))
+    );
+  };
+
+  const deleteAccount = (id: string): boolean => {
+    if (accounts.length <= 1) return false;
+    setAccounts((prev) => prev.filter((acc) => acc.id !== id));
+    return true;
   };
 
   const addEmployee = (employeeData: Omit<Employee, 'id' | 'joinedDate'>): Employee => {
@@ -1549,6 +1588,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addExpense,
         deleteExpense,
         transferFunds,
+        addAccount,
+        updateAccount,
+        deleteAccount,
         addEmployee,
         updateEmployee,
         deleteEmployee,

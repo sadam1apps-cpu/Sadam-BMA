@@ -30,7 +30,42 @@ export const initialBusinessProfile: BusinessProfile = {
   invoiceFooter: 'Thank you for your business!',
 };
 
-export const initialAccounts: Account[] = [];
+export const defaultAccounts: Account[] = [
+  {
+    id: 'acc-cash',
+    name: 'Main Cash Drawer Till',
+    type: 'cash',
+    accountNumber: 'TILL-01',
+    balance: 0,
+    currency: '$',
+    notes: 'Internal physical cash drawer for direct point-of-sale customer cash.',
+  },
+  {
+    id: 'acc-bank',
+    name: 'Company Bank Account',
+    type: 'bank',
+    bankName: '',
+    accountHolder: '',
+    accountNumber: '',
+    branchName: '',
+    swiftCode: '',
+    ibanOrNib: '',
+    balance: 0,
+    currency: '$',
+    notes: 'Internal company bank account details for wire transfers, client invoice settlements, and official records.',
+  },
+  {
+    id: 'acc-pos',
+    name: 'POS Card & Terminal',
+    type: 'bank',
+    accountNumber: 'POS-01',
+    balance: 0,
+    currency: '$',
+    notes: 'Internal ledger for credit/debit card machine transactions.',
+  },
+];
+
+export const initialAccounts: Account[] = defaultAccounts;
 
 export const initialProducts: Product[] = [];
 

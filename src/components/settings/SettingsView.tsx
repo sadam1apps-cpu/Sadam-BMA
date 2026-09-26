@@ -208,6 +208,8 @@ export const SettingsView: React.FC = () => {
                     <option value="KSh ">KES (KSh)</option>
                     <option value="GH₵ ">GHS (GH₵)</option>
                     <option value="R ">ZAR (R)</option>
+                    <option value="MT ">MZN / Metical - Mozambique (MT)</option>
+                    <option value="MZN ">MZN - Mozambique Metical (MZN)</option>
                   </select>
                 </div>
 

@@ -36,7 +36,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     if (productToEdit) {
       setName(productToEdit.name);
       setSku(productToEdit.sku);
-      setBarcode(productToEdit.barcode || '');
+      setBarcode(productToEdit.barcode != null ? String(productToEdit.barcode) : '');
       setCategory(productToEdit.category);
       setCostPrice(productToEdit.costPrice);
       setSellingPrice(productToEdit.sellingPrice);

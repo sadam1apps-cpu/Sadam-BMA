@@ -113,10 +113,10 @@ export const IconNavBar: React.FC = () => {
     <nav
       id="icon-nav-bar"
       aria-label="Application Navigation"
-      className="sticky top-13 sm:top-16 z-20 bg-slate-900 border-b border-slate-800 shadow-xs shrink-0"
+      className="sticky top-13 sm:top-16 z-20 bg-slate-900 border-b border-slate-800 shadow-xs shrink-0 overflow-hidden"
     >
-      <div className="w-full flex items-center justify-center px-1 sm:px-4 lg:px-6">
-        <div className="flex items-center justify-start sm:justify-center gap-1 sm:gap-2 md:gap-3 py-1 sm:py-2 overflow-x-auto no-scrollbar mx-auto max-w-full">
+      <div className="w-full max-w-7xl mx-auto px-1 sm:px-4 lg:px-6">
+        <div className="grid grid-cols-5 gap-1 py-1 sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-2 md:gap-3 sm:py-2 mx-auto max-w-full">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -127,14 +127,14 @@ export const IconNavBar: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  className="flex flex-col items-center justify-center text-center px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl opacity-35 cursor-not-allowed select-none min-w-[48px] sm:min-w-[70px]"
+                  className="flex flex-col items-center justify-center text-center p-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl opacity-35 cursor-not-allowed select-none min-w-0 sm:min-w-[70px]"
                   title={`${item.label} (Restricted by role)`}
                 >
                   <div className="relative flex items-center justify-center">
                     <Icon className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-slate-500" />
                     <Lock className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-slate-400 absolute -bottom-1 -right-1" />
                   </div>
-                  <span className="text-[9px] sm:text-[11px] font-medium text-slate-500 mt-0.5 sm:mt-1 whitespace-nowrap text-center">
+                  <span className="text-[9px] sm:text-[11px] font-medium text-slate-500 mt-0.5 sm:mt-1 whitespace-nowrap text-center truncate max-w-full">
                     {item.label}
                   </span>
                 </div>
@@ -148,7 +148,7 @@ export const IconNavBar: React.FC = () => {
                 type="button"
                 onClick={() => setActiveNavTab(item.id)}
                 title={item.tooltip}
-                className={`group flex flex-col items-center justify-center text-center px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer relative min-w-[50px] sm:min-w-[72px] ${
+                className={`group flex flex-col items-center justify-center text-center p-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer relative min-w-0 sm:min-w-[72px] ${
                   isActive
                     ? 'bg-indigo-600 text-white font-bold shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
@@ -172,7 +172,7 @@ export const IconNavBar: React.FC = () => {
                 </div>
 
                 <span
-                  className={`text-[9px] sm:text-[11px] tracking-tight mt-0.5 sm:mt-1 whitespace-nowrap text-center ${
+                  className={`text-[9px] sm:text-[11px] tracking-tight mt-0.5 sm:mt-1 whitespace-nowrap text-center truncate max-w-full ${
                     isActive ? 'text-white font-semibold' : 'text-slate-400 group-hover:text-slate-300'
                   }`}
                 >

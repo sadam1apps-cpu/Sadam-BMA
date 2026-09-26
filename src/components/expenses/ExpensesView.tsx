@@ -28,9 +28,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenNewExpense }) 
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredExpenses = expenses.filter((e) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      e.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (e.paidTo && e.paidTo.toLowerCase().includes(searchTerm.toLowerCase()));
+      String(e.title || '').toLowerCase().includes(term) ||
+      (e.paidTo && String(e.paidTo).toLowerCase().includes(term));
 
     const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
     return matchesSearch && matchesCategory;

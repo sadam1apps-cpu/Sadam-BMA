@@ -57,10 +57,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const term = searchTerm.toLowerCase().trim();
     const matchesSearch =
       !term ||
-      p.name.toLowerCase().includes(term) ||
-      p.sku.toLowerCase().includes(term) ||
-      (p.barcode && p.barcode.toLowerCase().includes(term)) ||
-      p.id.toLowerCase().includes(term);
+      String(p.name || '').toLowerCase().includes(term) ||
+      String(p.sku || '').toLowerCase().includes(term) ||
+      (p.barcode != null && String(p.barcode).toLowerCase().includes(term)) ||
+      String(p.id || '').toLowerCase().includes(term);
 
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
 
@@ -77,9 +77,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     const match = products.find(
       (p) =>
-        (p.barcode && p.barcode.toLowerCase() === cleanCode.toLowerCase()) ||
-        p.sku.toLowerCase() === cleanCode.toLowerCase() ||
-        p.id.toLowerCase() === cleanCode.toLowerCase()
+        (p.barcode != null && String(p.barcode).trim().toLowerCase() === cleanCode.toLowerCase()) ||
+        String(p.sku || '').toLowerCase() === cleanCode.toLowerCase() ||
+        String(p.id || '').toLowerCase() === cleanCode.toLowerCase()
     );
 
     if (match) {

@@ -280,6 +280,12 @@ export interface Account {
   accountNumber?: string;
   balance: number;
   currency: string;
+  bankName?: string;
+  accountHolder?: string;
+  branchName?: string;
+  swiftCode?: string;
+  ibanOrNib?: string; // NIB (Número de Identificação Bancária) / IBAN
+  notes?: string;
 }
 
 export interface AccountTransaction {
