@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
 import { Store, DollarSign, Check, Database, Globe } from 'lucide-react';
 import { SheetsDatabasePanel } from '../sheets/SheetsDatabasePanel';
@@ -8,19 +8,31 @@ export const SettingsView: React.FC = () => {
   const { profile, updateProfile, currentRole, permissions, language, setLanguage, t } = useBusiness();
   const canAccessDatabase = currentRole === 'owner' || permissions.canManageDatabase;
 
-  const [businessName, setBusinessName] = useState(profile.businessName || profile.name);
-  const [ownerName, setOwnerName] = useState(profile.ownerName || 'Alex Mercer');
-  const [phone, setPhone] = useState(profile.phone);
-  const [email, setEmail] = useState(profile.email);
-  const [address, setAddress] = useState(profile.address);
-  const [currency, setCurrency] = useState(profile.currency);
-  const [taxRate, setTaxRate] = useState<number>(profile.taxRate);
+  const [businessName, setBusinessName] = useState(profile.businessName || profile.name || '');
+  const [ownerName, setOwnerName] = useState(profile.ownerName || '');
+  const [phone, setPhone] = useState(profile.phone || '');
+  const [email, setEmail] = useState(profile.email || '');
+  const [address, setAddress] = useState(profile.address || '');
+  const [currency, setCurrency] = useState(profile.currency || '$');
+  const [taxRate, setTaxRate] = useState<number>(profile.taxRate ?? 0);
   const [invoiceFooter, setInvoiceFooter] = useState(profile.invoiceFooter || 'Thank you for your business!');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'database' | 'store' | 'billing' | 'language'>(
     canAccessDatabase ? 'database' : 'store'
   );
+
+  useEffect(() => {
+    setBusinessName(profile.businessName || profile.name || '');
+    setOwnerName(profile.ownerName || '');
+    setPhone(profile.phone || '');
+    setEmail(profile.email || '');
+    setAddress(profile.address || '');
+    setCurrency(profile.currency || '$');
+    setTaxRate(profile.taxRate ?? 0);
+    setInvoiceFooter(profile.invoiceFooter || 'Thank you for your business!');
+    setSelectedLanguage(language);
+  }, [profile, language]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,20 +50,17 @@ export const SettingsView: React.FC = () => {
       language: selectedLanguage,
     });
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden space-y-2 sm:space-y-3">
-      {/* Header */}
-      <div className="bg-white rounded-xl p-2.5 sm:p-4 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+    <div className="flex flex-col h-full overflow-hidden space-y-2 sm:space-y-2.5">
+      {/* Sleek, Compact Header without wasteful filler */}
+      <div className="bg-white rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
         <div>
-          <h1 className="text-sm sm:text-lg font-bold text-slate-900 tracking-tight">
+          <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
             {canAccessDatabase ? t.settingsTitleDb : t.settingsTitleStore}
           </h1>
-          <p className="text-[11px] sm:text-xs text-slate-500">
-            {canAccessDatabase ? t.settingsSubtitleDb : t.settingsSubtitleStore}
-          </p>
         </div>
 
         {/* Tab Switcher */}
@@ -110,82 +119,77 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {activeTab === 'database' && canAccessDatabase ? (
-        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-3">
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-2">
           <SheetsDatabasePanel />
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden gap-2">
-          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-2 sm:space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
             {/* Store & Contact Information */}
             <div
-              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-2.5 ${
+              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3 ${
                 activeTab !== 'store' ? 'hidden' : 'block'
               }`}
             >
-              <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
-                <Store className="w-4 h-4 text-indigo-600" />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.storeContactInfo}</h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    {t.businessName}
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    {t.businessName} *
                   </label>
                   <input
                     type="text"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-semibold focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.ownerName}
                   </label>
                   <input
                     type="text"
                     value={ownerName}
                     onChange={(e) => setOwnerName(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.storePhone}
                   </label>
                   <input
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.storeEmail}
                   </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.storeAddress}
                   </label>
                   <input
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -193,24 +197,19 @@ export const SettingsView: React.FC = () => {
 
             {/* Currency & Invoicing Terms */}
             <div
-              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-2.5 ${
+              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3 ${
                 activeTab !== 'billing' ? 'hidden' : 'block'
               }`}
             >
-              <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.currencyTerms}</h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.currencySymbol}
                   </label>
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-bold focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   >
                     <option value="$">USD ($)</option>
                     <option value="MT ">MZN / Metical - Moçambique (MT)</option>
@@ -230,7 +229,7 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.salesTax}
                   </label>
                   <input
@@ -240,19 +239,19 @@ export const SettingsView: React.FC = () => {
                     step="0.5"
                     value={taxRate}
                     onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-semibold focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                     {t.invoiceFooter}
                   </label>
                   <input
                     type="text"
                     value={invoiceFooter}
                     onChange={(e) => setInvoiceFooter(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -260,45 +259,32 @@ export const SettingsView: React.FC = () => {
 
             {/* Language Settings Card */}
             <div
-              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3 ${
+              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs ${
                 activeTab !== 'language' ? 'hidden' : 'block'
               }`}
             >
-              <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
-                <Globe className="w-4 h-4 text-indigo-600" />
-                <div>
-                  <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.languageSettings}</h2>
-                  <p className="text-[11px] text-slate-500">{t.languageSubtitle}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* English option */}
                 <div
                   onClick={() => {
                     setSelectedLanguage('en');
                     setLanguage('en');
                   }}
-                  className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
                     selectedLanguage === 'en'
                       ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-2xl" role="img" aria-label="English">🇺🇸</span>
-                      <div>
-                        <div className="font-bold text-xs sm:text-sm text-slate-900">{t.english}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{t.englishDesc}</div>
-                      </div>
-                    </div>
-                    {selectedLanguage === 'en' && (
-                      <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl" role="img" aria-label="English">🇺🇸</span>
+                    <span className="font-bold text-xs sm:text-sm text-slate-900">{t.english}</span>
                   </div>
+                  {selectedLanguage === 'en' && (
+                    <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
                 </div>
 
                 {/* Portuguese option */}
@@ -307,36 +293,31 @@ export const SettingsView: React.FC = () => {
                     setSelectedLanguage('pt');
                     setLanguage('pt');
                   }}
-                  className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
                     selectedLanguage === 'pt'
                       ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-2xl" role="img" aria-label="Portuguese">🇲🇿</span>
-                      <div>
-                        <div className="font-bold text-xs sm:text-sm text-slate-900">{t.portuguese}</div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{t.portugueseDesc}</div>
-                      </div>
-                    </div>
-                    {selectedLanguage === 'pt' && (
-                      <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl" role="img" aria-label="Portuguese">🇲🇿</span>
+                    <span className="font-bold text-xs sm:text-sm text-slate-900">{t.portuguese}</span>
                   </div>
+                  {selectedLanguage === 'pt' && (
+                    <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
           {/* Action Footer */}
-          <div className="bg-white rounded-xl border border-slate-200 p-2 sm:p-3 shadow-2xs flex items-center justify-end shrink-0">
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 sm:px-4 sm:py-2.5 shadow-2xs flex items-center justify-end shrink-0">
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
             >
               {saved ? (
                 <>

@@ -26,7 +26,6 @@ export const SheetsDatabasePanel: React.FC = () => {
     syncStrategy,
     setSyncStrategy,
     pendingChangesCount,
-    apiQuotaStats,
     t,
   } = useBusiness();
 
@@ -56,19 +55,14 @@ export const SheetsDatabasePanel: React.FC = () => {
     });
   };
 
-  const handleSaveEndpoint = () => {
-    setSheetsUrl(inputUrl);
-    setTestResult(null);
-  };
-
   return (
-    <div className="space-y-3 sm:space-y-3.5">
+    <div className="space-y-2.5">
       {/* Cloud Database Connection & Status Card */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0 shadow-2xs border border-indigo-100">
-              <Database className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0 border border-indigo-100">
+              <Database className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -107,7 +101,7 @@ export const SheetsDatabasePanel: React.FC = () => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                {spreadsheetTitle ? `Linked to "${spreadsheetTitle}"` : t.cloudDbSubtitle}
+                {spreadsheetTitle ? `"${spreadsheetTitle}"` : ''}
                 {lastSyncedAt && ` • ${t.lastSynced}: ${lastSyncedAt}`}
               </p>
             </div>
@@ -186,89 +180,66 @@ export const SheetsDatabasePanel: React.FC = () => {
         )}
       </div>
 
-      {/* Synchronization Policy Selector */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
-          <div>
-            <h3 className="text-xs sm:text-sm font-bold text-slate-900">
-              {t.syncPolicy}
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              {t.syncPolicyDesc}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
-            <span>{t.callsToday}: <strong>{apiQuotaStats.totalCallsToday}</strong> / {apiQuotaStats.dailySafeCeiling}</span>
-            {pendingChangesCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[10px]">
-                {pendingChangesCount} {t.inQueue}
-              </span>
-            )}
-          </div>
+      {/* Compact Synchronization Policy Selector */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+            {t.syncPolicy}
+          </h3>
+          {pendingChangesCount > 0 && (
+            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[10px]">
+              {pendingChangesCount} {t.inQueue}
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setSyncStrategy('smart_batch')}
-            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
               syncStrategy === 'smart_batch'
                 ? 'bg-indigo-50/80 border-indigo-500 text-indigo-950 shadow-2xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className="flex items-center justify-between font-bold text-xs">
-              <span className="flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>{t.smartBatch}</span>
-              </span>
-              {syncStrategy === 'smart_batch' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-              {t.smartBatchDesc}
-            </p>
+            <span className="flex items-center gap-1.5 font-bold text-xs">
+              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>{t.smartBatch}</span>
+            </span>
+            {syncStrategy === 'smart_batch' && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
           </button>
 
           <button
             type="button"
             onClick={() => setSyncStrategy('interval_15m')}
-            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
               syncStrategy === 'interval_15m'
                 ? 'bg-indigo-50/80 border-indigo-500 text-indigo-950 shadow-2xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className="flex items-center justify-between font-bold text-xs">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-sky-500" />
-                <span>{t.interval15m}</span>
-              </span>
-              {syncStrategy === 'interval_15m' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-              {t.interval15mDesc}
-            </p>
+            <span className="flex items-center gap-1.5 font-bold text-xs">
+              <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span>{t.interval15m}</span>
+            </span>
+            {syncStrategy === 'interval_15m' && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
           </button>
 
           <button
             type="button"
             onClick={() => setSyncStrategy('manual')}
-            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
               syncStrategy === 'manual'
                 ? 'bg-indigo-50/80 border-indigo-500 text-indigo-950 shadow-2xs'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <div className="flex items-center justify-between font-bold text-xs">
-              <span className="flex items-center gap-1.5">
-                <Gauge className="w-3.5 h-3.5 text-emerald-500" />
-                <span>{t.manualPush}</span>
-              </span>
-              {syncStrategy === 'manual' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-              {t.manualPushDesc}
-            </p>
+            <span className="flex items-center gap-1.5 font-bold text-xs">
+              <Gauge className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>{t.manualPush}</span>
+            </span>
+            {syncStrategy === 'manual' && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
           </button>
         </div>
       </div>
