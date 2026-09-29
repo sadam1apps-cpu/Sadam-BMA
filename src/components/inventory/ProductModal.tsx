@@ -19,7 +19,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   initialBarcode,
   initialSku,
 }) => {
-  const { addProduct, updateProduct, profile } = useBusiness();
+  const { addProduct, updateProduct, profile, t, language } = useBusiness();
 
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -105,7 +105,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-indigo-400" />
               <h2 className="text-base font-bold text-white">
-                {productToEdit ? 'Edit Product Details' : 'Add New Inventory Product'}
+                {productToEdit ? t.editProduct : t.addNewProduct}
               </h2>
             </div>
             <button
@@ -121,11 +121,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Product Name *
+                {t.productName}
               </label>
               <input
                 type="text"
-                placeholder="e.g. Wireless Noise-Cancelling Headphones"
+                placeholder={language === 'pt' ? 'ex: Fones de Ouvido Sem Fio Bluetooth' : 'e.g. Wireless Noise-Cancelling Headphones'}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -136,7 +136,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  SKU / Item Code *
+                  {t.sku} *
                 </label>
                 <input
                   type="text"
@@ -150,7 +150,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Barcode (UPC / EAN / QR)
+                    {t.barcode}
                   </label>
                   <button
                     type="button"
@@ -159,14 +159,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     title="Scan with mobile camera"
                   >
                     <Camera className="w-3 h-3" />
-                    <span>Scan</span>
+                    <span>{language === 'pt' ? 'Câmera' : 'Scan'}</span>
                   </button>
                 </div>
                 <div className="relative">
                   <Barcode className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Scan or enter barcode..."
+                    placeholder={language === 'pt' ? 'Ler ou inserir código...' : 'Scan or enter barcode...'}
                     value={barcode}
                     onChange={(e) => setBarcode(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -177,25 +177,25 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Category
+                {t.category}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               >
-                <option value="Electronics">Electronics</option>
-                <option value="Accessories">Accessories</option>
-                <option value="Office Supplies">Office Supplies</option>
-                <option value="Furniture">Furniture</option>
-                <option value="General">General Goods</option>
+                <option value="Electronics">{language === 'pt' ? 'Eletrónicos' : 'Electronics'}</option>
+                <option value="Accessories">{language === 'pt' ? 'Acessórios' : 'Accessories'}</option>
+                <option value="Office Supplies">{language === 'pt' ? 'Material de Escritório' : 'Office Supplies'}</option>
+                <option value="Furniture">{language === 'pt' ? 'Mobiliário' : 'Furniture'}</option>
+                <option value="General">{language === 'pt' ? 'Artigos Gerais' : 'General Goods'}</option>
               </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Cost Price ({profile.currency})
+                  {t.costPrice} ({profile.currency})
                 </label>
                 <input
                   type="number"
@@ -210,7 +210,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Selling Price ({profile.currency})
+                  {t.sellingPrice} ({profile.currency})
                 </label>
                 <input
                   type="number"
@@ -224,9 +224,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className="col-span-2 text-xs text-slate-600 flex items-center justify-between pt-1">
-                <span>Gross Profit Margin:</span>
+                <span>{language === 'pt' ? 'Margem de Lucro Bruta:' : 'Gross Profit Margin:'}</span>
                 <span className={`font-bold ${estimatedMargin > 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {estimatedMargin}% ({profile.currency}{(sellingPrice - costPrice).toFixed(2)} per unit)
+                  {estimatedMargin}% ({profile.currency}{(sellingPrice - costPrice).toFixed(2)} {language === 'pt' ? 'por unidade' : 'per unit'})
                 </span>
               </div>
             </div>
@@ -234,7 +234,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Initial Stock
+                  {t.stockQty}
                 </label>
                 <input
                   type="number"
@@ -248,7 +248,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Low Alert Min
+                  {t.minStockAlert}
                 </label>
                 <input
                   type="number"
@@ -262,17 +262,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                  Unit
+                  {t.unitOfMeasure}
                 </label>
                 <select
                   value={unit}
                   onChange={(e) => setUnit(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
                 >
-                  <option value="pcs">pcs</option>
-                  <option value="pack">pack</option>
-                  <option value="box">box</option>
-                  <option value="kit">kit</option>
+                  <option value="pcs">{language === 'pt' ? 'un (unidade)' : 'pcs'}</option>
+                  <option value="pack">{language === 'pt' ? 'pct (pacote)' : 'pack'}</option>
+                  <option value="box">{language === 'pt' ? 'cx (caixa)' : 'box'}</option>
+                  <option value="kit">{language === 'pt' ? 'kit (conjunto)' : 'kit'}</option>
                   <option value="kg">kg</option>
                 </select>
               </div>
@@ -284,13 +284,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="submit"
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
               >
-                {productToEdit ? 'Save Changes' : 'Add to Inventory'}
+                {productToEdit ? t.saveChanges : t.saveProduct}
               </button>
             </div>
 

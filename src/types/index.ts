@@ -22,6 +22,8 @@ export interface RolePermissions {
   canManageSettings: boolean;
 }
 
+export type Language = 'en' | 'pt';
+
 export interface BusinessProfile {
   name: string;
   businessName?: string;
@@ -33,6 +35,7 @@ export interface BusinessProfile {
   address: string;
   taxRate: number; // e.g., 5 for 5%
   invoiceFooter?: string;
+  language?: Language;
 }
 
 export interface Product {
@@ -84,7 +87,7 @@ export interface Sale {
   total: number;
   amountPaid: number;
   balanceDue: number;
-  paymentMethod: 'cash' | 'bank_transfer' | 'pos_card' | 'credit';
+  paymentMethod: 'cash' | 'bank_transfer' | 'pos_card' | 'credit' | 'mobile_money';
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   timestamp: string; // ISO date string
   cashierName: string;

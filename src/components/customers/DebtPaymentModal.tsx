@@ -9,10 +9,10 @@ interface DebtPaymentModalProps {
 }
 
 export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, onClose }) => {
-  const { recordDebtPayment, accounts, profile } = useBusiness();
+  const { recordDebtPayment, accounts, profile, t, language } = useBusiness();
   const [amount, setAmount] = useState<number>(customer ? customer.outstandingDebt : 0);
   const [accountId, setAccountId] = useState<string>('acc-cash');
-  const [notes, setNotes] = useState<string>('Customer debt settlement');
+  const [notes, setNotes] = useState<string>(language === 'pt' ? 'Liquidação de dívida de cliente' : 'Customer debt settlement');
 
   if (!customer) return null;
 
@@ -32,7 +32,7 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
         <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white">
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-white">Collect Debt Payment</h2>
+            <h2 className="text-base font-bold text-white">{t.collectDebt}</h2>
           </div>
           <button
             type="button"
@@ -46,19 +46,22 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs sm:text-sm">
           <div className="bg-rose-50 p-4 rounded-xl border border-rose-200">
             <div className="text-xs font-bold uppercase tracking-wider text-rose-800">
-              Customer Owing
+              {language === 'pt' ? 'Cliente Devedor' : 'Customer Owing'}
             </div>
             <div className="text-base font-extrabold text-rose-900 mt-0.5">
               {customer.name}
             </div>
             <div className="text-xs text-rose-700 mt-1">
-              Current Outstanding Debt: <strong className="text-base font-black text-rose-700">{profile.currency}{customer.outstandingDebt.toLocaleString()}</strong>
+              {language === 'pt' ? 'Dívida Atual Pendente:' : 'Current Outstanding Debt:'}{' '}
+              <strong className="text-base font-black text-rose-700">
+                {profile.currency}{customer.outstandingDebt.toLocaleString()}
+              </strong>
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Amount Paid ({profile.currency})
+              {language === 'pt' ? 'Valor a Pagar' : 'Amount Paid'} ({profile.currency})
             </label>
             <input
               type="number"
@@ -71,13 +74,16 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
               required
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
-              Remaining debt after payment: <strong className="text-slate-800">{profile.currency}{Math.max(0, customer.outstandingDebt - amount).toLocaleString()}</strong>
+              {language === 'pt' ? 'Dívida restante após este pagamento:' : 'Remaining debt after payment:'}{' '}
+              <strong className="text-slate-800">
+                {profile.currency}{Math.max(0, customer.outstandingDebt - amount).toLocaleString()}
+              </strong>
             </span>
           </div>
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Deposit Funds Into Account
+              {language === 'pt' ? 'Depositar Fundos na Conta' : 'Deposit Funds Into Account'}
             </label>
             <select
               value={accountId}
@@ -86,7 +92,7 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (Current: {profile.currency}{acc.balance.toLocaleString()})
+                  {acc.name} ({language === 'pt' ? 'Saldo Atual' : 'Current'}: {profile.currency}{acc.balance.toLocaleString()})
                 </option>
               ))}
             </select>
@@ -94,7 +100,7 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Receipt Memo / Notes
+              {language === 'pt' ? 'Notas / Comprovativo' : 'Receipt Memo / Notes'}
             </label>
             <input
               type="text"
@@ -104,19 +110,20 @@ export const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ customer, on
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
+              disabled={amount <= 0}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
-              Record Payment Receipt
+              {language === 'pt' ? 'Confirmar Recebimento' : 'Record Receipt'}
             </button>
           </div>
         </form>

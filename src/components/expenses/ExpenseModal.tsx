@@ -9,7 +9,7 @@ interface ExpenseModalProps {
 }
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) => {
-  const { addExpense, accounts, currentRole, profile } = useBusiness();
+  const { addExpense, accounts, currentRole, profile, t, language } = useBusiness();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Expense['category']>('utilities');
@@ -45,7 +45,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
         <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
           <div className="flex items-center gap-2">
             <TrendingDown className="w-5 h-5 text-rose-400" />
-            <h2 className="text-base font-bold text-white">Record Operating Expense</h2>
+            <h2 className="text-base font-bold text-white">{t.recordExpense}</h2>
           </div>
           <button
             type="button"
@@ -59,11 +59,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Expense Description *
+              {t.expenseDescription}
             </label>
             <input
               type="text"
-              placeholder="e.g. Monthly Warehouse Rent, Fuel for Van, Packaging tape..."
+              placeholder={language === 'pt' ? 'ex: Renda mensal do armazém, Combustível, Fita cola...' : 'e.g. Monthly Warehouse Rent, Fuel for Van, Packaging tape...'}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -74,27 +74,27 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Category
+                {t.category}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as any)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
               >
-                <option value="rent">Rent & Premises</option>
-                <option value="salaries">Salaries & Wages</option>
-                <option value="transport">Transport & Logistics</option>
-                <option value="utilities">Utilities & Power</option>
-                <option value="supplies">Store Supplies & Packaging</option>
-                <option value="marketing">Marketing & Ads</option>
-                <option value="maintenance">Maintenance & Repairs</option>
-                <option value="other">Other Operational Costs</option>
+                <option value="rent">{language === 'pt' ? 'Renda e Instalações' : 'Rent & Premises'}</option>
+                <option value="salaries">{language === 'pt' ? 'Salários e Remunerações' : 'Salaries & Wages'}</option>
+                <option value="transport">{language === 'pt' ? 'Transporte e Logística' : 'Transport & Logistics'}</option>
+                <option value="utilities">{language === 'pt' ? 'Água, Luz e Comunicações' : 'Utilities & Power'}</option>
+                <option value="supplies">{language === 'pt' ? 'Material de Loja e Embalagem' : 'Store Supplies & Packaging'}</option>
+                <option value="marketing">{language === 'pt' ? 'Publicidade e Marketing' : 'Marketing & Ads'}</option>
+                <option value="maintenance">{language === 'pt' ? 'Manutenção e Reparações' : 'Maintenance & Repairs'}</option>
+                <option value="other">{language === 'pt' ? 'Outros Custos Operacionais' : 'Other Operational Costs'}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Amount ({profile.currency}) *
+                {t.amount} ({profile.currency}) *
               </label>
               <input
                 type="number"
@@ -111,7 +111,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Paid From Account
+                {t.paidFromAccount}
               </label>
               <select
                 value={accountId}
@@ -128,11 +128,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Paid To (Recipient)
+                {t.paidTo}
               </label>
               <input
                 type="text"
-                placeholder="Vendor or Landlord"
+                placeholder={language === 'pt' ? 'ex: Senhorio ou Fornecedor de Serviços' : 'Vendor or Landlord'}
                 value={paidTo}
                 onChange={(e) => setPaidTo(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
@@ -142,11 +142,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Receipt Reference / Memo
+              {language === 'pt' ? 'Referência do Recibo / Nota' : 'Receipt Reference / Memo'}
             </label>
             <input
               type="text"
-              placeholder="Receipt / Voucher # or notes"
+              placeholder={language === 'pt' ? 'Nº de recibo / comprovativo ou notas' : 'Receipt / Voucher # or notes'}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
@@ -159,13 +159,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
               className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
-              Save Expense Entry
+              {t.saveExpense}
             </button>
           </div>
         </form>

@@ -14,7 +14,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   onClose,
   supplierToEdit,
 }) => {
-  const { addSupplier, updateSupplier, profile } = useBusiness();
+  const { addSupplier, updateSupplier, profile, t, language } = useBusiness();
 
   const [companyName, setCompanyName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
@@ -79,7 +79,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
           <div className="flex items-center gap-2">
             <Truck className="w-5 h-5 text-indigo-400" />
             <h2 className="text-base font-bold text-white">
-              {supplierToEdit ? 'Edit Supplier Vendor' : 'Add New Supplier Vendor'}
+              {supplierToEdit ? t.editSupplier : t.addNewSupplier}
             </h2>
           </div>
           <button
@@ -94,11 +94,11 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Company / Vendor Name *
+              {t.supplierName}
             </label>
             <input
               type="text"
-              placeholder="e.g. Pacific Digital Distributors"
+              placeholder={language === 'pt' ? 'ex: Distribuidora Central Lda' : 'e.g. Pacific Digital Distributors'}
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -109,11 +109,11 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Contact Person
+                {t.contactPerson}
               </label>
               <input
                 type="text"
-                placeholder="e.g. Jason Wright"
+                placeholder={language === 'pt' ? 'ex: Carlos Santos' : 'e.g. Jason Wright'}
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
@@ -122,11 +122,11 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Category
+                {t.category}
               </label>
               <input
                 type="text"
-                placeholder="e.g. Office Supplies, Audio"
+                placeholder={language === 'pt' ? 'ex: Papelaria, Bebidas, Eletrónicos' : 'e.g. Office Supplies, Audio'}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
@@ -137,7 +137,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Phone Number
+                {t.phoneLabel}
               </label>
               <input
                 type="text"
@@ -149,7 +149,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Email Address
+                {t.emailLabel}
               </label>
               <input
                 type="email"
@@ -162,7 +162,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Current Payable / Amount Owed ({profile.currency})
+              {t.outstandingBalance} ({profile.currency})
             </label>
             <input
               type="number"
@@ -179,13 +179,13 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
-              {supplierToEdit ? 'Save Supplier' : 'Add Supplier'}
+              {supplierToEdit ? t.saveChanges : t.saveSupplier}
             </button>
           </div>
         </form>

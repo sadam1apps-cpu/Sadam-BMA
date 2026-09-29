@@ -37,7 +37,7 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
   onClose,
   employeeToEdit,
 }) => {
-  const { addEmployee, updateEmployee, currentUser, currentRole, permissions } = useBusiness();
+  const { addEmployee, updateEmployee, currentUser, currentRole, permissions, profile, language, t } = useBusiness();
 
   const isEditing = Boolean(employeeToEdit);
   const isSelf = Boolean(currentUser && employeeToEdit && currentUser.id === employeeToEdit.id);
@@ -223,10 +223,10 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base text-white">
-                {isEditing ? `Edit Staff: ${employeeToEdit?.name}` : 'New Staff Account'}
+                {isEditing ? `${t.editStaff}: ${employeeToEdit?.name}` : t.newStaffAccount}
               </h3>
               <p className="text-xs text-slate-400">
-                Manage login credentials and customizable role permissions
+                {language === 'pt' ? 'Gerir credenciais de acesso e permissões' : 'Manage login credentials and customizable role permissions'}
               </p>
             </div>
           </div>
@@ -252,7 +252,7 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Staff Profile</span>
+            <span>{language === 'pt' ? 'Perfil do Funcionário' : 'Staff Profile'}</span>
           </button>
 
           <button
@@ -265,7 +265,7 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
             }`}
           >
             <KeyRound className="w-3.5 h-3.5" />
-            <span>Login &amp; Security</span>
+            <span>{language === 'pt' ? 'Credenciais e Segurança' : 'Login & Security'}</span>
           </button>
 
           <button
@@ -278,7 +278,7 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            <span>Role &amp; Permissions</span>
+            <span>{language === 'pt' ? 'Função e Permissões' : 'Role & Permissions'}</span>
             {overrideCount > 0 && (
               <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-100 text-amber-800 font-bold">
                 {overrideCount}
@@ -304,14 +304,14 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                    Full Staff Name *
+                    {t.fullName} *
                   </label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Sarah Jenkins"
+                    placeholder={language === 'pt' ? 'ex: Sara Silva' : 'e.g. Sarah Jenkins'}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
@@ -319,11 +319,11 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
-                      Primary Role
+                      {t.role}
                     </label>
                     {isRoleLocked && (
                       <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                        {isSelf ? 'Own role locked' : 'Hierarchy locked'}
+                        {isSelf ? (language === 'pt' ? 'Própria função bloqueada' : 'Own role locked') : (language === 'pt' ? 'Bloqueado por hierarquia' : 'Hierarchy locked')}
                       </span>
                     )}
                   </div>
@@ -339,15 +339,23 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
                   >
                     {availableRoles.map((r) => (
                       <option key={r.value} value={r.value}>
-                        {r.label}
+                        {language === 'pt'
+                          ? r.value === 'owner'
+                            ? t.roleOwner
+                            : r.value === 'manager'
+                            ? t.roleManager
+                            : r.value === 'cashier'
+                            ? t.roleCashier
+                            : t.roleClerk
+                          : r.label}
                       </option>
                     ))}
                   </select>
                   {isRoleLocked && (
                     <p className="text-[10px] text-slate-400 mt-1">
                       {isSelf
-                        ? 'Your assigned role is maintained by store management and cannot be modified by yourself.'
-                        : 'Only higher-level administrators can change roles for this staff member.'}
+                        ? (language === 'pt' ? 'A sua função é gerida pela administração e não pode ser alterada por si próprio.' : 'Your assigned role is maintained by store management and cannot be modified by yourself.')
+                        : (language === 'pt' ? 'Apenas administradores de nível superior podem alterar a função deste colaborador.' : 'Only higher-level administrators can change roles for this staff member.')}
                     </p>
                   )}
                 </div>
@@ -651,7 +659,7 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
 
             <button
@@ -661,10 +669,10 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
               {savedSuccess ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-300" />
-                  <span>Saved!</span>
+                  <span>{t.saved}</span>
                 </>
               ) : (
-                <span>Save Staff Account</span>
+                <span>{t.saveStaff}</span>
               )}
             </button>
           </div>

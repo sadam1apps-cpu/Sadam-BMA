@@ -24,7 +24,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
   onClose,
   accountToEdit,
 }) => {
-  const { addAccount, updateAccount, deleteAccount, profile, accounts } = useBusiness();
+  const { addAccount, updateAccount, deleteAccount, profile, accounts, t, language } = useBusiness();
 
   const isEditing = Boolean(accountToEdit);
 
@@ -135,7 +135,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
               <Building2 className="w-5 h-5 text-blue-400" />
             )}
             <h2 className="text-sm sm:text-base font-bold text-white">
-              {isEditing ? 'Edit Account Record' : 'Add Bank / Cash Record'}
+              {isEditing ? (language === 'pt' ? 'Editar Registo de Conta' : 'Edit Account Record') : t.addAccount}
             </h2>
           </div>
           <button
@@ -151,7 +151,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
           {/* Account Type Selector */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-              Account Type
+              {t.accountType}
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -167,7 +167,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                 }`}
               >
                 <Building2 className="w-4 h-4 mb-1 text-blue-600" />
-                <span>Bank Account</span>
+                <span>{t.bankAccount}</span>
               </button>
 
               <button
@@ -183,7 +183,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                 }`}
               >
                 <Wallet className="w-4 h-4 mb-1 text-amber-600" />
-                <span>Cash Register Till</span>
+                <span>{t.cashRegister}</span>
               </button>
 
               <button
@@ -199,7 +199,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                 }`}
               >
                 <Smartphone className="w-4 h-4 mb-1 text-emerald-600" />
-                <span>Mobile Money</span>
+                <span>{language === 'pt' ? 'Carteira Móvel' : 'Mobile Money'}</span>
               </button>
             </div>
           </div>
@@ -207,13 +207,13 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
           {/* Account Display Label */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Internal Account Label *
+              {t.accountLabel}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Standard Bank Operating, Millennium BIM Checking, Register Till #1"
+              placeholder={language === 'pt' ? 'ex: Standard Bank Operações, Millennium BIM, Gaveta Caixa #1' : 'e.g. Standard Bank Operating, Millennium BIM Checking, Register Till #1'}
               required
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
@@ -224,13 +224,13 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
               <div className="flex items-center gap-1.5 text-slate-800 font-bold text-[11px] uppercase tracking-wider border-b border-slate-200/80 pb-1">
                 <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Official Institution &amp; Wire Details</span>
+                <span>{t.bankDetails}</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    {type === 'mobile_money' ? 'Provider / Network' : 'Bank Name'}
+                    {type === 'mobile_money' ? (language === 'pt' ? 'Operadora / Rede' : 'Provider / Network') : t.bankName}
                   </label>
                   <input
                     type="text"
@@ -238,8 +238,8 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                     onChange={(e) => setBankName(e.target.value)}
                     placeholder={
                       type === 'mobile_money'
-                        ? 'e.g. M-Pesa (Vodacom), E-Mola (Movitel)'
-                        : 'e.g. Millennium BIM, Standard Bank, BCI, Moza Banco'
+                        ? (language === 'pt' ? 'ex: M-Pesa (Vodacom), E-Mola (Movitel)' : 'e.g. M-Pesa (Vodacom), E-Mola (Movitel)')
+                        : (language === 'pt' ? 'ex: Millennium BIM, Standard Bank, BCI, Moza Banco' : 'e.g. Millennium BIM, Standard Bank, BCI, Moza Banco')
                     }
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
@@ -247,65 +247,65 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Account Holder / Beneficiary
+                    {t.accountHolder}
                   </label>
                   <input
                     type="text"
                     value={accountHolder}
                     onChange={(e) => setAccountHolder(e.target.value)}
-                    placeholder="e.g. Company Legal Name / Store Owner"
+                    placeholder={language === 'pt' ? 'ex: Nome Legal da Empresa / Titular' : 'e.g. Company Legal Name / Store Owner'}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Account / Phone Number
+                    {t.accountNumber}
                   </label>
                   <input
                     type="text"
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
-                    placeholder={type === 'mobile_money' ? 'e.g. +258 84 000 0000' : 'e.g. 1029384756'}
+                    placeholder={type === 'mobile_money' ? '+258 84 000 0000' : '1029384756'}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    NIB / IBAN (Interbank Transfer)
+                    {t.nibIban}
                   </label>
                   <input
                     type="text"
                     value={ibanOrNib}
                     onChange={(e) => setIbanOrNib(e.target.value)}
-                    placeholder="e.g. 0001 0000 1234 5678 9012 3 (NIB / IBAN)"
+                    placeholder="0001 0000 1234 5678 9012 3"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    SWIFT / BIC Code
+                    {t.swiftBic}
                   </label>
                   <input
                     type="text"
                     value={swiftCode}
                     onChange={(e) => setSwiftCode(e.target.value)}
-                    placeholder="e.g. BIMMMZM / SBICMZM"
+                    placeholder="BIMMMZM / SBICMZM"
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-mono uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Branch / Agency
+                    {language === 'pt' ? 'Balcão / Agência' : 'Branch / Agency'}
                   </label>
                   <input
                     type="text"
                     value={branchName}
                     onChange={(e) => setBranchName(e.target.value)}
-                    placeholder="e.g. Agência Central Maputo"
+                    placeholder={language === 'pt' ? 'ex: Agência Central Maputo' : 'e.g. Agência Central Maputo'}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
@@ -317,7 +317,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Current Balance ({profile.currency})
+                {t.initialBalance} ({profile.currency})
               </label>
               <input
                 type="number"
@@ -330,13 +330,13 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Internal Notes (Optional)
+                {language === 'pt' ? 'Notas Internas (Opcional)' : 'Internal Notes (Optional)'}
               </label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes or instructions..."
+                placeholder={language === 'pt' ? 'Notas ou instruções adicionais...' : 'Optional notes or instructions...'}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none"
               />
             </div>
@@ -351,7 +351,7 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                 className="inline-flex items-center gap-1 px-3 py-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors font-semibold cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
+                <span>{t.delete}</span>
               </button>
             ) : (
               <div />
@@ -363,13 +363,13 @@ export const AccountRecordModal: React.FC<AccountRecordModalProps> = ({
                 onClick={onClose}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="submit"
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
-                {isEditing ? 'Save Account Record' : 'Add Account Record'}
+                {isEditing ? t.saveChanges : t.saveAccount}
               </button>
             </div>
           </div>

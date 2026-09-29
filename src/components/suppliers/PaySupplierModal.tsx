@@ -9,10 +9,10 @@ interface PaySupplierModalProps {
 }
 
 export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, onClose }) => {
-  const { paySupplier, accounts, profile } = useBusiness();
+  const { paySupplier, accounts, profile, t, language } = useBusiness();
   const [amount, setAmount] = useState<number>(supplier ? supplier.amountOwed : 0);
   const [accountId, setAccountId] = useState<string>('acc-bank');
-  const [notes, setNotes] = useState<string>('Supplier invoice settlement');
+  const [notes, setNotes] = useState<string>(language === 'pt' ? 'Pagamento de fatura de fornecedor' : 'Supplier invoice settlement');
 
   if (!supplier) return null;
 
@@ -32,7 +32,7 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
         <div className="flex items-center justify-between px-5 py-4 bg-slate-900 text-white">
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-base font-bold text-white">Pay Supplier Bill</h2>
+            <h2 className="text-base font-bold text-white">{t.paySupplier}</h2>
           </div>
           <button
             type="button"
@@ -46,19 +46,22 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs sm:text-sm">
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Vendor / Supplier
+              {language === 'pt' ? 'Fornecedor' : 'Vendor / Supplier'}
             </div>
             <div className="text-base font-extrabold text-slate-900 mt-0.5">
               {supplier.companyName}
             </div>
             <div className="text-xs text-rose-600 mt-1 font-semibold">
-              Current Balance Owed: <strong className="text-base font-black">{profile.currency}{supplier.amountOwed.toLocaleString()}</strong>
+              {language === 'pt' ? 'Saldo Devedor Atual:' : 'Current Balance Owed:'}{' '}
+              <strong className="text-base font-black">
+                {profile.currency}{supplier.amountOwed.toLocaleString()}
+              </strong>
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Payment Amount ({profile.currency})
+              {language === 'pt' ? 'Valor do Pagamento' : 'Payment Amount'} ({profile.currency})
             </label>
             <input
               type="number"
@@ -71,13 +74,16 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
               required
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
-              Remaining balance owed: <strong className="text-slate-800">{profile.currency}{Math.max(0, supplier.amountOwed - amount).toLocaleString()}</strong>
+              {language === 'pt' ? 'Saldo restante a pagar:' : 'Remaining balance owed:'}{' '}
+              <strong className="text-slate-800">
+                {profile.currency}{Math.max(0, supplier.amountOwed - amount).toLocaleString()}
+              </strong>
             </span>
           </div>
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Pay From Account
+              {t.paidFromAccount}
             </label>
             <select
               value={accountId}
@@ -86,7 +92,7 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} (Available: {profile.currency}{acc.balance.toLocaleString()})
+                  {acc.name} ({language === 'pt' ? 'Disponível' : 'Available'}: {profile.currency}{acc.balance.toLocaleString()})
                 </option>
               ))}
             </select>
@@ -94,7 +100,7 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Notes / Check / Wire Ref
+              {language === 'pt' ? 'Notas / Ref. de Transferência' : 'Notes / Check / Wire Ref'}
             </label>
             <input
               type="text"
@@ -104,19 +110,20 @@ export const PaySupplierModal: React.FC<PaySupplierModalProps> = ({ supplier, on
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
+              disabled={amount <= 0}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
-              Confirm Supplier Payment
+              {language === 'pt' ? 'Confirmar Pagamento' : 'Confirm Payment'}
             </button>
           </div>
         </form>

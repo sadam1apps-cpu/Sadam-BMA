@@ -8,7 +8,7 @@ import {
   Store,
   CheckCircle2,
   ChevronDown,
-  FileSpreadsheet,
+  Database,
   RefreshCw,
   User,
   Lock,
@@ -39,6 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
     logout,
     lockScreen,
     setIsLoginModalOpen,
+    language,
+    t,
   } = useBusiness();
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -48,28 +50,31 @@ export const Header: React.FC<HeaderProps> = ({
 
   const roleLabels: Record<UserRole, { label: string; desc: string }> = {
     owner: {
-      label: 'Store Owner',
-      desc: 'Full access to all operations, P&L, and data',
+      label: language === 'pt' ? 'Proprietário' : 'Store Owner',
+      desc: language === 'pt' ? 'Acesso total a todas as operações, DRE e dados' : 'Full access to all operations, P&L, and data',
     },
     manager: {
-      label: 'Duty Manager',
-      desc: 'Full access (Zero login/permission barrier)',
+      label: language === 'pt' ? 'Gerente' : 'Duty Manager',
+      desc: language === 'pt' ? 'Acesso operacional completo' : 'Full access (Zero login/permission barrier)',
     },
     cashier: {
-      label: 'POS Cashier',
-      desc: 'Full access (Zero login/permission barrier)',
+      label: language === 'pt' ? 'Operador de Caixa' : 'POS Cashier',
+      desc: language === 'pt' ? 'Terminal de vendas e faturação' : 'Full access (Zero login/permission barrier)',
     },
     inventory_clerk: {
-      label: 'Inventory Clerk',
-      desc: 'Full access (Zero login/permission barrier)',
+      label: language === 'pt' ? 'Gestor de Stock' : 'Inventory Clerk',
+      desc: language === 'pt' ? 'Gestão de catálogo e stock' : 'Full access (Zero login/permission barrier)',
     },
   };
 
-  const currentDateFormatted = new Date().toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+  const currentDateFormatted = new Date().toLocaleDateString(
+    language === 'pt' ? 'pt-PT' : 'en-US',
+    {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }
+  );
 
   return (
     <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800 shadow-xs shrink-0">
@@ -165,8 +170,8 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
                           <div>
-                            <div className="font-medium text-xs">My Permissions</div>
-                            <div className="text-[10px] text-slate-400">View access rights &amp; restrictions</div>
+                            <div className="font-medium text-xs">{language === 'pt' ? 'Minhas Permissões' : 'My Permissions'}</div>
+                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Ver direitos de acesso e restrições' : 'View access rights & restrictions'}</div>
                           </div>
                         </button>
 
@@ -180,8 +185,8 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <Lock className="w-4 h-4 text-amber-400 shrink-0" />
                           <div>
-                            <div className="font-medium text-xs">Lock Terminal</div>
-                            <div className="text-[10px] text-slate-400">Lock screen with PIN required</div>
+                            <div className="font-medium text-xs">{language === 'pt' ? 'Bloquear Terminal' : 'Lock Terminal'}</div>
+                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Bloquear ecrã com PIN obrigatório' : 'Lock screen with PIN required'}</div>
                           </div>
                         </button>
 
@@ -195,8 +200,8 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                           <div>
-                            <div className="font-medium text-xs">Switch Staff Account</div>
-                            <div className="text-[10px] text-slate-400">Quick sign-in as another user</div>
+                            <div className="font-medium text-xs">{language === 'pt' ? 'Mudar de Conta' : 'Switch Staff Account'}</div>
+                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Iniciar sessão como outro funcionário' : 'Quick sign-in as another user'}</div>
                           </div>
                         </button>
 
@@ -212,8 +217,8 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <LogOut className="w-4 h-4 shrink-0" />
                           <div>
-                            <div className="font-medium text-xs">Sign Out</div>
-                            <div className="text-[10px] text-rose-300/70">End active staff session</div>
+                            <div className="font-medium text-xs">{language === 'pt' ? 'Terminar Sessão' : 'Sign Out'}</div>
+                            <div className="text-[10px] text-rose-300/70">{language === 'pt' ? 'Encerrar sessão de trabalho atual' : 'End active staff session'}</div>
                           </div>
                         </button>
                       </div>
@@ -228,7 +233,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all shadow-xs cursor-pointer"
               >
                 <KeyRound className="w-3.5 h-3.5" />
-                <span>Staff Sign In</span>
+                <span>{language === 'pt' ? 'Entrar / Iniciar Sessão' : 'Staff Sign In'}</span>
               </button>
             )}
 
@@ -241,7 +246,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Click to view your active permissions & assigned role privileges"
             >
               <Shield className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="hidden sm:inline text-slate-400">Role:</span>
+              <span className="hidden sm:inline text-slate-400">{language === 'pt' ? 'Cargo:' : 'Role:'}</span>
               <span className="font-semibold text-white">
                 {roleLabels[currentRole]?.label || currentRole}
               </span>
@@ -263,10 +268,10 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Google Sheets DB Status Indicator (Restricted to Owner/Admin with database privileges) */}
+            {/* Cloud Database Status Indicator (Restricted to Owner/Admin with database privileges) */}
             {(currentRole === 'owner' || permissions.canManageDatabase) && (
               <button
-                id="header-sheets-db-btn"
+                id="header-cloud-db-btn"
                 type="button"
                 onClick={() => setActiveNavTab('settings')}
                 className={`inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
@@ -280,14 +285,14 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
                 title={
                   sheetsSyncStatus === 'syncing'
-                    ? 'Synchronizing data with Google Sheets...'
-                    : 'Google Sheets Database (Click to view settings & sync)'
+                    ? t.syncing
+                    : `${t.cloudDatabase} - ${sheetsSyncStatus === 'connected' ? t.connected : sheetsSyncStatus === 'error' ? t.syncError : t.unlinked}`
                 }
               >
                 {sheetsSyncStatus === 'syncing' ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
                 ) : (
-                  <FileSpreadsheet
+                  <Database
                     className={`w-3.5 h-3.5 shrink-0 ${
                       sheetsSyncStatus === 'connected'
                         ? 'text-emerald-400'
@@ -299,14 +304,14 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
                 <span>
                   {sheetsSyncStatus === 'syncing' ? (
-                    'Syncing...'
+                    t.syncing
                   ) : (
                     <span className="hidden md:inline">
                       {sheetsSyncStatus === 'connected'
-                        ? 'Sheets DB'
+                        ? t.cloudDatabase
                         : sheetsSyncStatus === 'error'
-                        ? 'Sync Error'
-                        : 'Sheets DB'}
+                        ? t.syncError
+                        : t.cloudDatabase}
                     </span>
                   )}
                 </span>
@@ -332,7 +337,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-xs transition-colors cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Sale</span>
+              <span>{t.quickSale}</span>
             </button>
 
           </div>

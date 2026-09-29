@@ -14,7 +14,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   onClose,
   customerToEdit,
 }) => {
-  const { addCustomer, updateCustomer, profile } = useBusiness();
+  const { addCustomer, updateCustomer, profile, t, language } = useBusiness();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -85,7 +85,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           <div className="flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-indigo-400" />
             <h2 className="text-base font-bold text-white">
-              {customerToEdit ? 'Edit Customer Account' : 'Add New Customer Profile'}
+              {customerToEdit ? t.editCustomer : t.addNewCustomer}
             </h2>
           </div>
           <button
@@ -100,11 +100,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Customer / Business Name *
+              {t.customerName}
             </label>
             <input
               type="text"
-              placeholder="e.g. Marcus Sterling (Sterling Coworking)"
+              placeholder={language === 'pt' ? 'ex: Maria Silva ou Empresa Lda' : 'e.g. Marcus Sterling (Sterling Coworking)'}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -115,11 +115,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Phone Number *
+                {t.phoneLabel} *
               </label>
               <input
                 type="text"
-                placeholder="+1 (555) 000-0000"
+                placeholder={language === 'pt' ? '+258 84 000 0000' : '+1 (555) 000-0000'}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -129,11 +129,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Email Address
+                {t.emailLabel}
               </label>
               <input
                 type="email"
-                placeholder="customer@domain.com"
+                placeholder="cliente@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -143,11 +143,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Physical / Delivery Address
+              {t.storeAddress.replace(' *', '')}
             </label>
             <input
               type="text"
-              placeholder="Street, Suite / Floor, City"
+              placeholder={language === 'pt' ? 'Rua, Bairro, Cidade' : 'Street, Suite / Floor, City'}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -157,7 +157,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Credit Limit ({profile.currency})
+                {t.creditLimit} ({profile.currency})
               </label>
               <input
                 type="number"
@@ -170,7 +170,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Opening Debt Balance ({profile.currency})
+                {t.outstandingDebt} ({profile.currency})
               </label>
               <input
                 type="number"
@@ -184,11 +184,11 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              Customer Notes / Terms
+              {language === 'pt' ? 'Observações e Condições de Pagamento' : 'Customer Notes / Terms'}
             </label>
             <textarea
               rows={2}
-              placeholder="e.g. Net 15 days payment terms, reliable payer..."
+              placeholder={language === 'pt' ? 'ex: Pagamento a 15 dias, cliente habitual...' : 'e.g. Net 15 days payment terms, reliable payer...'}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
@@ -201,13 +201,13 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-colors cursor-pointer"
             >
-              Cancel
+              {t.cancel}
             </button>
             <button
               type="submit"
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
-              {customerToEdit ? 'Save Customer' : 'Add Customer Profile'}
+              {customerToEdit ? t.saveChanges : t.saveCustomer}
             </button>
           </div>
         </form>

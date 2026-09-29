@@ -47,6 +47,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     syncFromSheets,
     addEmployee,
     setCurrentUser,
+    language,
+    setLanguage,
+    t,
   } = useBusiness();
 
   const [activeTab, setActiveTab] = useState<'pin' | 'password'>('pin');
@@ -268,20 +271,44 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
               <div className="min-w-0">
                 <h2 className="text-xs sm:text-sm font-bold text-white truncate leading-tight tracking-tight">
-                  {profile.name || 'Terminal Access'}
+                  {profile.name || t.terminalAccess}
                 </h2>
                 <p className="text-[10px] sm:text-[11px] text-slate-300 truncate leading-normal">
                   {isScreenLocked
-                    ? `Locked session for ${currentUser?.name || 'Staff'}`
-                    : 'Secure staff authentication'}
+                    ? `${t.lockedSessionFor} ${currentUser?.name || 'Staff'}`
+                    : t.secureStaffAuth}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-[#0052CC]/25 text-[#93C5FD] border border-[#0052CC]/40 flex items-center gap-1 shadow-2xs">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Language Switcher Badge on Login / Lock */}
+              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/80 p-0.5 text-[10px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en')}
+                  className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                    language === 'en' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Switch to English"
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('pt')}
+                  className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                    language === 'pt' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
+                  }`}
+                  title="Mudar para Português"
+                >
+                  PT
+                </button>
+              </div>
+
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-[#0052CC]/25 text-[#93C5FD] border border-[#0052CC]/40 items-center gap-1 shadow-2xs">
                 <Shield className="w-3 h-3 text-[#38BDF8]" />
-                <span>Protected</span>
+                <span>{t.protectedBadge}</span>
               </span>
             </div>
           </div>
@@ -303,7 +330,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               }`}
             >
               <KeyRound className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0052CC]" />
-              <span>Quick PIN</span>
+              <span>{t.quickPin}</span>
             </button>
             <button
               type="button"
@@ -315,7 +342,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               }`}
             >
               <Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0052CC]" />
-              <span>Password</span>
+              <span>{t.password}</span>
             </button>
           </div>
         )}
@@ -359,10 +386,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
               <div className="space-y-1">
                 <h3 className="text-xs sm:text-sm font-bold text-[#0B1B3D]">
-                  Connecting to Database
+                  {t.connectingToDatabase}
                 </h3>
                 <p className="text-[11px] text-slate-500 max-w-[240px] mx-auto leading-relaxed">
-                  Synchronizing secure staff credentials and terminal profiles...
+                  {t.syncingStaffCredentials}
                 </p>
               </div>
             </div>
@@ -377,10 +404,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
               <div>
                 <h3 className="text-xs font-bold text-[#0B1B3D]">
-                  No staff accounts configured
+                  {t.noStaffConfigured}
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5 leading-normal">
-                  Initialize your store owner account to get started with full privileges.
+                  {t.initializeOwner}
                 </p>
               </div>
 
@@ -391,7 +418,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  <span>Sync</span>
+                  <span>{language === 'pt' ? 'Sincronizar' : 'Sync'}</span>
                 </button>
                 <button
                   type="button"
@@ -399,7 +426,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#0052CC] hover:bg-[#0043A6] text-white flex items-center gap-1.5 cursor-pointer shadow-sm shadow-[#0052CC]/30 transition-all"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>Create Owner</span>
+                  <span>{t.createOwner}</span>
                 </button>
               </div>
             </div>
@@ -409,18 +436,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           {!isConnecting && employees.length === 0 && showOwnerSetup && (
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                <span className="font-bold text-[#0B1B3D]">Initialize Store Owner</span>
+                <span className="font-bold text-[#0B1B3D]">{language === 'pt' ? 'Criar Proprietário Inicial' : 'Initialize Store Owner'}</span>
                 <button
                   type="button"
                   onClick={() => setShowOwnerSetup(false)}
                   className="text-slate-400 hover:text-slate-600 cursor-pointer text-xs"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Full Name</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t.fullName}</label>
                   <input
                     type="text"
                     required
@@ -431,7 +458,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Email</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t.emailLabel}</label>
                   <input
                     type="email"
                     required
@@ -442,7 +469,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">4-Digit PIN</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t.pinCode}</label>
                   <input
                     type="password"
                     maxLength={4}
@@ -453,7 +480,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Password</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">{t.password}</label>
                   <input
                     type="password"
                     value={ownerPassword}
@@ -489,7 +516,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 }}
                 className="w-full py-2 bg-[#0052CC] hover:bg-[#0043A6] text-white rounded-xl font-bold text-xs cursor-pointer shadow-md shadow-[#0052CC]/25 transition-all mt-1"
               >
-                Save &amp; Enter Terminal
+                {language === 'pt' ? 'Guardar e Entrar no Terminal' : 'Save & Enter Terminal'}
               </button>
             </div>
           )}
@@ -504,7 +531,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <div className="flex items-center gap-1.5 truncate">
                     <Lock className="w-3.5 h-3.5 text-[#0052CC] shrink-0" />
                     <span className="truncate text-[11px]">
-                      Locked: <strong className="font-bold">{currentUser.name}</strong>
+                      {language === 'pt' ? 'Sessão Bloqueada:' : 'Locked:'} <strong className="font-bold">{currentUser.name}</strong>
                     </span>
                   </div>
                   <button
@@ -515,10 +542,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       setErrorMessage(null);
                     }}
                     className="text-[10px] font-semibold text-[#0052CC] hover:text-[#00388A] flex items-center gap-1 cursor-pointer shrink-0 ml-1.5"
-                    title="Log out active session and switch user"
+                    title={language === 'pt' ? 'Terminar sessão e mudar de utilizador' : 'Log out active session and switch user'}
                   >
                     <LogOut className="w-3 h-3" />
-                    <span>Switch</span>
+                    <span>{language === 'pt' ? 'Trocar' : 'Switch'}</span>
                   </button>
                 </div>
               )}
@@ -528,7 +555,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200 animate-fadeIn">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                      Work Email or Username
+                      {language === 'pt' ? 'Email Profissional ou Utilizador' : 'Work Email or Username'}
                     </label>
                     <button
                       type="button"
@@ -538,7 +565,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       }}
                       className="text-[9px] text-slate-400 hover:text-slate-600"
                     >
-                      Hide
+                      {language === 'pt' ? 'Ocultar' : 'Hide'}
                     </button>
                   </div>
                   <div className="relative">
@@ -572,7 +599,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   })}
                 </div>
                 <div className="text-[10px] text-slate-400 font-medium mt-1">
-                  Enter 4-digit staff PIN
+                  {t.enterPinPrompt}
                 </div>
               </div>
 
@@ -596,7 +623,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   onClick={() => handleKeypadPress('clear')}
                   className="h-8.5 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
                 >
-                  Clear
+                  {t.clear}
                 </button>
 
                 <button
@@ -627,7 +654,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   onClick={() => submitPin()}
                   className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <span>{isScreenLocked ? 'Unlock Terminal' : 'Sign In'}</span>
+                  <span>{isScreenLocked ? (language === 'pt' ? 'Desbloquear Terminal' : 'Unlock Terminal') : t.signIn}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
 
@@ -638,7 +665,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       onClick={() => setShowIdentifierInput(true)}
                       className="text-[10px] text-slate-400 hover:text-[#0052CC] font-medium transition-colors cursor-pointer"
                     >
-                      Multiple staff on this terminal? Specify Work Email
+                      {language === 'pt' ? 'Vários funcionários neste terminal? Especificar Email' : 'Multiple staff on this terminal? Specify Work Email'}
                     </button>
                   </div>
                 )}
@@ -651,7 +678,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <form onSubmit={handlePasswordLogin} className="space-y-2.5 py-1">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Work Email or Username
+                  {t.staffIdentifier}
                 </label>
                 <div className="relative">
                   <User className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -668,7 +695,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Password
+                  {t.password}
                 </label>
                 <div className="relative">
                   <KeyRound className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -677,7 +704,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="Enter account password"
+                    placeholder={language === 'pt' ? 'Insira a palavra-passe' : 'Enter account password'}
                     className="w-full pl-8 pr-8 py-1.5 sm:py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0052CC] focus:border-[#0052CC] bg-white text-[#0B1B3D]"
                   />
                   <button
@@ -695,7 +722,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 disabled={lockoutSeconds > 0}
                 className="w-full py-2 sm:py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] mt-1 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <span>Sign In</span>
+                <span>{t.signIn}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </form>
@@ -706,7 +733,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         {/* Corporate Security Guarantee Footer (STech Color Standardized) */}
         <div className="bg-[#F8FAFC] px-3 py-1.5 sm:py-2 border-t border-slate-100 text-center flex items-center justify-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400 shrink-0">
           <Shield className="w-3 h-3 text-[#0052CC]" />
-          <span>Protected POS Access • Enterprise Security Engine</span>
+          <span>{language === 'pt' ? 'Acesso Seguro ao Terminal POS • STech Enterprise' : 'Protected POS Access • Enterprise Security Engine'}</span>
         </div>
 
       </div>

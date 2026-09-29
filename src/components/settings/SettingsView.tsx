@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { Store, DollarSign, Check, FileSpreadsheet } from 'lucide-react';
+import { Store, DollarSign, Check, Database, Globe } from 'lucide-react';
 import { SheetsDatabasePanel } from '../sheets/SheetsDatabasePanel';
+import { Language } from '../../types';
 
 export const SettingsView: React.FC = () => {
-  const { profile, updateProfile, currentRole, permissions } = useBusiness();
+  const { profile, updateProfile, currentRole, permissions, language, setLanguage, t } = useBusiness();
   const canAccessDatabase = currentRole === 'owner' || permissions.canManageDatabase;
 
   const [businessName, setBusinessName] = useState(profile.businessName || profile.name);
@@ -15,13 +16,15 @@ export const SettingsView: React.FC = () => {
   const [currency, setCurrency] = useState(profile.currency);
   const [taxRate, setTaxRate] = useState<number>(profile.taxRate);
   const [invoiceFooter, setInvoiceFooter] = useState(profile.invoiceFooter || 'Thank you for your business!');
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'database' | 'store' | 'billing'>(
+  const [activeTab, setActiveTab] = useState<'database' | 'store' | 'billing' | 'language'>(
     canAccessDatabase ? 'database' : 'store'
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setLanguage(selectedLanguage);
     updateProfile({
       name: businessName,
       businessName,
@@ -32,6 +35,7 @@ export const SettingsView: React.FC = () => {
       currency,
       taxRate,
       invoiceFooter,
+      language: selectedLanguage,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -43,17 +47,15 @@ export const SettingsView: React.FC = () => {
       <div className="bg-white rounded-xl p-2.5 sm:p-4 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
         <div>
           <h1 className="text-sm sm:text-lg font-bold text-slate-900 tracking-tight">
-            {canAccessDatabase ? 'Settings & Database Integration' : 'Store Settings & Profile'}
+            {canAccessDatabase ? t.settingsTitleDb : t.settingsTitleStore}
           </h1>
           <p className="text-[11px] sm:text-xs text-slate-500">
-            {canAccessDatabase
-              ? 'Self-healing Google Sheets database, store profile, and currency setup'
-              : 'Manage store contact details, tax rate, and receipt currency setup'}
+            {canAccessDatabase ? t.settingsSubtitleDb : t.settingsSubtitleStore}
           </p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-0.5 rounded-lg shrink-0 border border-slate-200 self-start sm:self-auto">
+        <div className="flex flex-wrap bg-slate-100 p-0.5 rounded-lg shrink-0 border border-slate-200 self-start sm:self-auto gap-0.5">
           {canAccessDatabase && (
             <button
               type="button"
@@ -64,8 +66,8 @@ export const SettingsView: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Sheets Database</span>
+              <Database className="w-3.5 h-3.5" />
+              <span>{t.tabCloudDatabase}</span>
             </button>
           )}
           <button
@@ -78,7 +80,7 @@ export const SettingsView: React.FC = () => {
             }`}
           >
             <Store className="w-3.5 h-3.5" />
-            <span>Store Profile</span>
+            <span>{t.tabStoreProfile}</span>
           </button>
           <button
             type="button"
@@ -90,7 +92,19 @@ export const SettingsView: React.FC = () => {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>Currency &amp; Tax</span>
+            <span>{t.tabCurrencyTax}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('language')}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+              activeTab === 'language'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{t.tabLanguage}</span>
           </button>
         </div>
       </div>
@@ -110,13 +124,13 @@ export const SettingsView: React.FC = () => {
             >
               <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
                 <Store className="w-4 h-4 text-indigo-600" />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">Store &amp; Contact Information</h2>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.storeContactInfo}</h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Business Name *
+                    {t.businessName}
                   </label>
                   <input
                     type="text"
@@ -129,7 +143,7 @@ export const SettingsView: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Owner / Director Name
+                    {t.ownerName}
                   </label>
                   <input
                     type="text"
@@ -141,7 +155,7 @@ export const SettingsView: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Store Phone
+                    {t.storePhone}
                   </label>
                   <input
                     type="text"
@@ -153,7 +167,7 @@ export const SettingsView: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Store Email
+                    {t.storeEmail}
                   </label>
                   <input
                     type="email"
@@ -165,7 +179,7 @@ export const SettingsView: React.FC = () => {
 
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Physical Store Address (Printed on Invoices)
+                    {t.storeAddress}
                   </label>
                   <input
                     type="text"
@@ -185,13 +199,13 @@ export const SettingsView: React.FC = () => {
             >
               <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
                 <DollarSign className="w-4 h-4 text-emerald-600" />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">Currency &amp; Invoicing Terms</h2>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.currencyTerms}</h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Currency Symbol
+                    {t.currencySymbol}
                   </label>
                   <select
                     value={currency}
@@ -199,7 +213,11 @@ export const SettingsView: React.FC = () => {
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 font-bold focus:outline-none"
                   >
                     <option value="$">USD ($)</option>
-                    <option value="€">EUR (€)</option>
+                    <option value="MT ">MZN / Metical - Moçambique (MT)</option>
+                    <option value="MZN ">MZN - Metical (MZN)</option>
+                    <option value="R$ ">BRL - Real Brasil (R$)</option>
+                    <option value="€">EUR (€) - Portugal / Europa</option>
+                    <option value="Kz ">AOA - Cuanza Angola (Kz)</option>
                     <option value="£">GBP (£)</option>
                     <option value="¥">JPY / CNY (¥)</option>
                     <option value="₹">INR (₹)</option>
@@ -208,14 +226,12 @@ export const SettingsView: React.FC = () => {
                     <option value="KSh ">KES (KSh)</option>
                     <option value="GH₵ ">GHS (GH₵)</option>
                     <option value="R ">ZAR (R)</option>
-                    <option value="MT ">MZN / Metical - Mozambique (MT)</option>
-                    <option value="MZN ">MZN - Mozambique Metical (MZN)</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Default Sales Tax (%)
+                    {t.salesTax}
                   </label>
                   <input
                     type="number"
@@ -230,7 +246,7 @@ export const SettingsView: React.FC = () => {
 
                 <div className="sm:col-span-2">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-0.5">
-                    Receipt Footer Disclaimer
+                    {t.invoiceFooter}
                   </label>
                   <input
                     type="text"
@@ -238,6 +254,79 @@ export const SettingsView: React.FC = () => {
                     onChange={(e) => setInvoiceFooter(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Language Settings Card */}
+            <div
+              className={`bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3 ${
+                activeTab !== 'language' ? 'hidden' : 'block'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                <Globe className="w-4 h-4 text-indigo-600" />
+                <div>
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.languageSettings}</h2>
+                  <p className="text-[11px] text-slate-500">{t.languageSubtitle}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* English option */}
+                <div
+                  onClick={() => {
+                    setSelectedLanguage('en');
+                    setLanguage('en');
+                  }}
+                  className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                    selectedLanguage === 'en'
+                      ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl" role="img" aria-label="English">🇺🇸</span>
+                      <div>
+                        <div className="font-bold text-xs sm:text-sm text-slate-900">{t.english}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{t.englishDesc}</div>
+                      </div>
+                    </div>
+                    {selectedLanguage === 'en' && (
+                      <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Portuguese option */}
+                <div
+                  onClick={() => {
+                    setSelectedLanguage('pt');
+                    setLanguage('pt');
+                  }}
+                  className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                    selectedLanguage === 'pt'
+                      ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl" role="img" aria-label="Portuguese">🇲🇿</span>
+                      <div>
+                        <div className="font-bold text-xs sm:text-sm text-slate-900">{t.portuguese}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">{t.portugueseDesc}</div>
+                      </div>
+                    </div>
+                    {selectedLanguage === 'pt' && (
+                      <div className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -252,10 +341,10 @@ export const SettingsView: React.FC = () => {
               {saved ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Saved!</span>
+                  <span>{t.saved}</span>
                 </>
               ) : (
-                <span>Save Changes</span>
+                <span>{t.saveChanges}</span>
               )}
             </button>
           </div>

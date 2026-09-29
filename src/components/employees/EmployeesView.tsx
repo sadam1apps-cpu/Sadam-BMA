@@ -38,6 +38,8 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
     currentUser,
     setIsLoginModalOpen,
     deleteEmployee,
+    t,
+    language,
   } = useBusiness();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -46,10 +48,22 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
 
   const roleBadges: Record<UserRole, { label: string; color: string }> = {
-    owner: { label: 'Store Owner', color: 'bg-purple-100 text-purple-800 border-purple-200' },
-    manager: { label: 'Duty Manager', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    cashier: { label: 'Cashier / Sales', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-    inventory_clerk: { label: 'Inventory Clerk', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+    owner: {
+      label: language === 'pt' ? 'Proprietário' : 'Store Owner',
+      color: 'bg-purple-100 text-purple-800 border-purple-200',
+    },
+    manager: {
+      label: language === 'pt' ? 'Gerente' : 'Duty Manager',
+      color: 'bg-blue-100 text-blue-800 border-blue-200',
+    },
+    cashier: {
+      label: language === 'pt' ? 'Caixa / Vendas' : 'Cashier / Sales',
+      color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    },
+    inventory_clerk: {
+      label: language === 'pt' ? 'Resp. Stock' : 'Inventory Clerk',
+      color: 'bg-amber-100 text-amber-800 border-amber-200',
+    },
   };
 
   const totalMonthlyPayroll = employees.reduce((acc, e) => acc + (e.monthlySalary || 0), 0);
@@ -96,14 +110,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-sm sm:text-lg font-bold text-slate-900 tracking-tight">
-              Employees, Logins &amp; Roles
+              {t.staffHeaderTitle}
             </h1>
-            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-              Synced with Employees Sheet
-            </span>
           </div>
           <p className="text-[11px] sm:text-xs text-slate-500">
-            {employees.length} team members • {employees.filter((e) => e.attendanceStatus === 'present').length} clocked in • Manage PINs, passwords &amp; custom permissions
+            {employees.length} {t.teamMembers} • {employees.filter((e) => e.attendanceStatus === 'present').length} {t.clockedIn}
           </p>
         </div>
 
@@ -114,11 +125,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Staff Account</span>
+            <span>{t.addStaffAccount}</span>
           </button>
         ) : (
           <div className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-            Read-only mode
+            {t.readOnlyMode}
           </div>
         )}
       </div>
@@ -137,34 +148,38 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
         <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Staff Logins
+            {t.staffLogins}
           </span>
           <div className="text-sm sm:text-xl font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
-            {employees.length} Accounts
+            {employees.length} {language === 'pt' ? 'Contas' : 'Accounts'}
           </div>
           <span className="text-[10px] text-emerald-600 hidden sm:block">
-            {employees.filter((e) => (e.status || 'active') === 'active').length} active, {employees.filter((e) => e.status === 'suspended').length} suspended
+            {employees.filter((e) => (e.status || 'active') === 'active').length} {language === 'pt' ? 'ativos' : 'active'}, {employees.filter((e) => e.status === 'suspended').length} {language === 'pt' ? 'suspensos' : 'suspended'}
           </span>
         </div>
 
         <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Attendance
+            {t.attendance}
           </span>
           <div className="text-sm sm:text-xl font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
             {employees.filter((e) => e.attendanceStatus === 'present').length}/{employees.length}
           </div>
-          <span className="text-[10px] text-slate-500 hidden sm:block">Clocked in right now</span>
+          <span className="text-[10px] text-slate-500 hidden sm:block">
+            {language === 'pt' ? 'Em serviço agora' : 'Clocked in right now'}
+          </span>
         </div>
 
         <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Monthly Payroll
+            {t.monthlyPayroll}
           </span>
           <div className="text-sm sm:text-xl font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
             {profile.currency}{totalMonthlyPayroll.toLocaleString()}
           </div>
-          <span className="text-[10px] text-slate-500 hidden sm:block">Base payroll liability</span>
+          <span className="text-[10px] text-slate-500 hidden sm:block">
+            {language === 'pt' ? 'Total salarial base' : 'Base payroll liability'}
+          </span>
         </div>
       </div>
 
@@ -308,13 +323,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] z-10">
               <tr>
-                <th className="py-2.5 px-3.5">Staff &amp; ID</th>
-                <th className="py-2.5 px-3.5">Role</th>
-                <th className="py-2.5 px-3.5">Login Credentials</th>
-                <th className="py-2.5 px-3.5">Permissions Status</th>
-                <th className="py-2.5 px-3.5">Attendance</th>
-                <th className="py-2.5 px-3.5">Salary</th>
-                <th className="py-2.5 px-3.5 text-right">Actions</th>
+                <th className="py-2.5 px-3.5">{language === 'pt' ? 'Funcionário & ID' : 'Staff & ID'}</th>
+                <th className="py-2.5 px-3.5">{t.role}</th>
+                <th className="py-2.5 px-3.5">{language === 'pt' ? 'Credenciais de Acesso' : 'Login Credentials'}</th>
+                <th className="py-2.5 px-3.5">{language === 'pt' ? 'Permissões' : 'Permissions Status'}</th>
+                <th className="py-2.5 px-3.5">{t.attendance}</th>
+                <th className="py-2.5 px-3.5">{language === 'pt' ? 'Salário' : 'Salary'}</th>
+                <th className="py-2.5 px-3.5 text-right">{t.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

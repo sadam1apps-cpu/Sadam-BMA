@@ -45,6 +45,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     addCustomer,
     currentRole,
     permissions,
+    language,
+    t,
   } = useBusiness();
 
   const [customerId, setCustomerId] = useState<string>('walk-in'); // default Walk-in Customer
@@ -342,7 +344,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-xs sm:text-base font-bold text-white truncate">
-                  Create New Sale &amp; Invoice
+                  {t.newSaleTitle}
                 </h2>
                 <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                   POS Terminal
@@ -392,7 +394,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               <div className="sm:col-span-6 bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Customer Account
+                    {t.customerAccount}
                   </label>
                   {customerId === 'new' && (
                     <label className="inline-flex items-center gap-1 text-[10px] text-slate-600 cursor-pointer select-none">
@@ -402,7 +404,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         onChange={(e) => setSaveClientToSystem(e.target.checked)}
                         className="w-3 h-3 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
                       />
-                      <span>Save in System</span>
+                      <span>{t.saveInSystem}</span>
                     </label>
                   )}
                 </div>
@@ -417,7 +419,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   }}
                   className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 >
-                  <option value="walk-in">Walk-in Customer (Default)</option>
+                  <option value="walk-in">{t.walkInCustomer}</option>
                   {customers
                     .filter((c) => c.id !== 'walk-in' && !c.name.toLowerCase().includes('walk-in'))
                     .map((c) => (
@@ -425,14 +427,14 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         {c.name} {c.outstandingDebt > 0 ? `(Debt: ${profile.currency}${c.outstandingDebt.toLocaleString()})` : ''}
                       </option>
                     ))}
-                  <option value="new">+ Enter Client / One-time</option>
+                  <option value="new">{t.enterClient}</option>
                 </select>
 
                 {customerId === 'new' && (
                   <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5 animate-fadeIn">
                     <input
                       type="text"
-                      placeholder="Client Name..."
+                      placeholder={t.clientNamePlaceholder}
                       value={customCustomerName}
                       onChange={(e) => setCustomCustomerName(e.target.value)}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-900 focus:ring-1 focus:ring-indigo-500"
@@ -441,7 +443,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     />
                     <input
                       type="tel"
-                      placeholder="Phone (optional)..."
+                      placeholder={t.phoneOptional}
                       value={customCustomerPhone}
                       onChange={(e) => setCustomCustomerPhone(e.target.value)}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-900 focus:ring-1 focus:ring-indigo-500"
@@ -455,7 +457,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-1">
                     <Barcode className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Barcode / SKU</span>
+                    <span>{t.barcode} / SKU</span>
                   </label>
                   <button
                     type="button"
@@ -463,13 +465,13 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 hover:text-indigo-900 cursor-pointer"
                   >
                     <Camera className="w-3 h-3" />
-                    <span>Camera</span>
+                    <span>{language === 'pt' ? 'Câmera' : 'Camera'}</span>
                   </button>
                 </div>
                 <div className="flex items-center gap-1">
                   <input
                     type="text"
-                    placeholder="Scan or type barcode & Enter..."
+                    placeholder={t.barcodePrompt}
                     value={quickBarcodeInput}
                     onChange={(e) => setQuickBarcodeInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -486,7 +488,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     disabled={!quickBarcodeInput.trim()}
                     className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
                   >
-                    + Add
+                    {language === 'pt' ? '+ Adicionar' : '+ Add'}
                   </button>
                 </div>
               </div>
@@ -519,7 +521,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Search product name, SKU, or barcode to add..."
+                    placeholder={t.searchProductPlaceholder}
                     value={productSearchTerm}
                     onChange={(e) => setProductSearchTerm(e.target.value)}
                     onKeyDown={(e) => {
@@ -562,8 +564,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   title="Toggle full product catalog browsing"
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Browse Catalog</span>
-                  <span className="sm:hidden">Catalog</span>
+                  <span className="hidden sm:inline">{t.browseCatalog}</span>
+                  <span className="sm:hidden">{t.browseCatalog}</span>
                   <span className="text-[10px] opacity-80">({products.length})</span>
                   {isCatalogExpanded ? (
                     <ChevronUp className="w-3 h-3 ml-0.5" />
@@ -578,7 +580,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 <div className="bg-white rounded-xl border border-indigo-200 shadow-sm max-h-44 overflow-y-auto divide-y divide-slate-100 animate-fadeIn">
                   {filteredProducts.length === 0 ? (
                     <div className="p-3 text-center text-xs text-slate-500">
-                      No products found matching &ldquo;{productSearchTerm}&rdquo;
+                      {language === 'pt' ? 'Nenhum produto encontrado com' : 'No products found matching'} &ldquo;{productSearchTerm}&rdquo;
                     </div>
                   ) : (
                     filteredProducts.map((prod) => {
@@ -625,7 +627,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                                     : 'text-emerald-700'
                                 }`}
                               >
-                                {isOutOfStock ? 'Out of Stock' : `${prod.stock} ${prod.unit} left`}
+                                {isOutOfStock ? t.outOfStock : `${prod.stock} ${prod.unit} ${t.inStock}`}
                               </span>
                             </div>
                           </div>
@@ -649,7 +651,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                               }}
                               className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded text-[11px] font-bold transition-colors cursor-pointer"
                             >
-                              + Add
+                              {language === 'pt' ? '+ Adicionar' : '+ Add'}
                             </button>
                           </div>
                         </div>
@@ -735,7 +737,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 <div className="flex items-center gap-1.5">
                   <ShoppingCart className="w-3.5 h-3.5 text-indigo-600" />
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                    Selected Items ({selectedItems.length})
+                    {language === 'pt' ? 'Itens Selecionados' : 'Selected Items'} ({selectedItems.length})
                   </span>
                 </div>
                 {selectedItems.length > 0 && (
@@ -744,7 +746,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     onClick={handleClearAll}
                     className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
                   >
-                    Clear Cart
+                    {language === 'pt' ? 'Limpar Carrinho' : 'Clear Cart'}
                   </button>
                 )}
               </div>
@@ -754,9 +756,9 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 {selectedItems.length === 0 ? (
                   <div className="p-6 text-center text-slate-400 text-xs flex flex-col items-center justify-center h-full">
                     <ShoppingCart className="w-8 h-8 text-slate-300 mb-1.5" />
-                    <span>No products added yet.</span>
+                    <span>{language === 'pt' ? 'Nenhum produto adicionado ainda.' : 'No products added yet.'}</span>
                     <span className="text-[10px] text-slate-400 mt-0.5">
-                      Click any item from the catalog or scan barcode to add.
+                      {t.emptyCartPrompt}
                     </span>
                   </div>
                 ) : (
@@ -871,14 +873,14 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               {/* Payment Method Selector */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                  Payment Method
+                  {t.paymentMethod}
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
-                    { id: 'cash', label: 'Cash Till', icon: Wallet },
-                    { id: 'bank_transfer', label: 'Bank Transfer', icon: Landmark },
-                    { id: 'pos_card', label: 'POS / Card', icon: CreditCard },
-                    { id: 'credit', label: 'Store Credit', icon: User },
+                    { id: 'cash', label: language === 'pt' ? 'Dinheiro' : 'Cash Till', icon: Wallet },
+                    { id: 'bank_transfer', label: language === 'pt' ? 'Transferência' : 'Bank Transfer', icon: Landmark },
+                    { id: 'pos_card', label: language === 'pt' ? 'Cartão / POS' : 'POS / Card', icon: CreditCard },
+                    { id: 'credit', label: language === 'pt' ? 'A Prazo (Crédito)' : 'Store Credit', icon: User },
                   ].map((pm) => (
                     <button
                       key={pm.id}
@@ -901,21 +903,21 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Amount Paid Now ({profile.currency})
+                    {language === 'pt' ? 'Valor Pago Agora' : 'Amount Paid Now'} ({profile.currency})
                   </label>
                   <button
                     type="button"
                     onClick={() => setAmountPaidInput(grandTotal.toString())}
                     className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
                   >
-                    Exact ({profile.currency}{grandTotal})
+                    {language === 'pt' ? 'Exato' : 'Exact'} ({profile.currency}{grandTotal})
                   </button>
                 </div>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder={`Full amount (${profile.currency}${grandTotal})`}
+                  placeholder={`${language === 'pt' ? 'Valor total' : 'Full amount'} (${profile.currency}${grandTotal})`}
                   value={amountPaidInput}
                   onChange={(e) => setAmountPaidInput(e.target.value)}
                   className="w-full text-xs sm:text-sm bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 font-bold"
@@ -925,11 +927,11 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               {/* Sale Notes / Reference */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Notes / Reference (Optional)
+                  {language === 'pt' ? 'Notas / Referência (Opcional)' : 'Notes / Reference (Optional)'}
                 </label>
                 <input
                   type="text"
-                  placeholder="Receipt memo or PO number..."
+                  placeholder={language === 'pt' ? 'Observação do recibo...' : 'Receipt memo or PO number...'}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -940,7 +942,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5 text-xs shadow-2xs">
                 
                 <div className="flex justify-between text-slate-600 text-xs">
-                  <span>Subtotal ({selectedItems.length} items):</span>
+                  <span>{t.subtotal} ({selectedItems.length} {language === 'pt' ? 'itens' : 'items'}):</span>
                   <span className="font-semibold text-slate-900">
                     {profile.currency}{subtotal.toLocaleString()}
                   </span>
@@ -948,7 +950,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
 
                 {permissions.canGiveDiscounts && (
                   <div className="flex items-center justify-between text-slate-600 text-xs">
-                    <span>Discount (%):</span>
+                    <span>{t.discount} (%):</span>
                     <div className="inline-flex items-center gap-1">
                       <input
                         type="number"
@@ -966,7 +968,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 )}
 
                 <div className="flex items-center justify-between text-slate-600 text-xs">
-                  <span>Tax (%):</span>
+                  <span>{t.tax} (%):</span>
                   <div className="inline-flex items-center gap-1">
                     <input
                       type="number"
@@ -981,7 +983,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 </div>
 
                 <div className="border-t-2 border-slate-200 pt-2 flex justify-between items-center text-sm font-extrabold text-slate-900">
-                  <span>Grand Total:</span>
+                  <span>{t.grandTotal}:</span>
                   <span className="text-base sm:text-lg font-black text-indigo-600">
                     {profile.currency}{grandTotal.toLocaleString()}
                   </span>
@@ -990,14 +992,14 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 {/* Change or Customer Debt Status */}
                 {changeGiven > 0 && (
                   <div className="flex justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1 rounded-lg text-xs border border-emerald-200 mt-1">
-                    <span>Change to Return:</span>
+                    <span>{language === 'pt' ? 'Troco a Devolver:' : 'Change to Return:'}</span>
                     <span>{profile.currency}{changeGiven.toLocaleString()}</span>
                   </div>
                 )}
 
                 {balanceDue > 0 && (
                   <div className="flex justify-between text-rose-800 font-bold bg-rose-50 px-2 py-1 rounded-lg text-xs border border-rose-200 mt-1">
-                    <span>Customer Debt (Credit):</span>
+                    <span>{language === 'pt' ? 'Dívida do Cliente (Crédito):' : 'Customer Debt (Credit):'}</span>
                     <span>{profile.currency}{balanceDue.toLocaleString()}</span>
                   </div>
                 )}
@@ -1013,7 +1015,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 onClick={onClose}
                 className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
-                Cancel
+                {t.cancel}
               </button>
               <button
                 type="submit"
@@ -1021,7 +1023,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <FileCheck className="w-4 h-4" />
-                <span>Complete Sale ({profile.currency}{grandTotal.toLocaleString()})</span>
+                <span>{language === 'pt' ? 'Concluir Venda' : 'Complete Sale'} ({profile.currency}{grandTotal.toLocaleString()})</span>
               </button>
             </div>
 

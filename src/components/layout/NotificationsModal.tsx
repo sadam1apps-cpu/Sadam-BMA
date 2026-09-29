@@ -20,7 +20,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { alerts, markAlertRead, dismissAlert, setActiveNavTab } = useBusiness();
+  const { alerts, markAlertRead, dismissAlert, setActiveNavTab, language, t } = useBusiness();
 
   if (!isOpen) return null;
 
@@ -40,7 +40,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-indigo-400" />
             <h2 className="text-base font-bold text-white">
-              Business Alerts & Notifications ({alerts.length})
+              {language === 'pt' ? 'Alertas e Notificações do Negócio' : 'Business Alerts & Notifications'} ({alerts.length})
             </h2>
           </div>
           <button
@@ -56,9 +56,11 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           {alerts.length === 0 ? (
             <div className="p-8 text-center">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-900">All clear!</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {language === 'pt' ? 'Tudo em ordem!' : 'All clear!'}
+              </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                No active stock or debtor alerts at this moment.
+                {language === 'pt' ? 'Sem alertas pendentes de stock ou devedores neste momento.' : 'No active stock or debtor alerts at this moment.'}
               </p>
             </div>
           ) : (
@@ -109,7 +111,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                               }
                               className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
                             >
-                              <span>Take action</span>
+                              <span>{language === 'pt' ? 'Ver Detalhes' : 'Take action'}</span>
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           )}
@@ -120,7 +122,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                               onClick={() => markAlertRead(alert.id)}
                               className="text-[11px] text-slate-500 hover:text-slate-800 cursor-pointer"
                             >
-                              Mark as read
+                              {language === 'pt' ? 'Marcar como lido' : 'Mark as read'}
                             </button>
                           )}
                         </div>
@@ -131,7 +133,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                       type="button"
                       onClick={() => dismissAlert(alert.id)}
                       className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
-                      title="Dismiss alert"
+                      title={language === 'pt' ? 'Eliminar alerta' : 'Dismiss alert'}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -148,7 +150,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             onClick={onClose}
             className="px-4 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer"
           >
-            Close
+            {t.close}
           </button>
         </div>
       </div>

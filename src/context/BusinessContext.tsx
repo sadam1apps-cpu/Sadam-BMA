@@ -14,6 +14,7 @@ import {
   UserRole,
   DEFAULT_ROLE_PERMISSIONS,
   ROLE_HIERARCHY,
+  Language,
 } from '../types';
 import {
   initialAccounts,
@@ -34,12 +35,16 @@ import {
   ApiQuotaStats,
   getApiQuotaStats,
 } from '../services/sheetsDb';
+import { getTranslation, TranslationHelper } from '../translations';
 
 export type SheetsSyncStatus = 'idle' | 'syncing' | 'connected' | 'error' | 'disconnected';
 
 interface BusinessContextType {
   profile: BusinessProfile;
   updateProfile: (profile: Partial<BusinessProfile>) => void;
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: TranslationHelper;
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
   permissions: RolePermissions;
@@ -177,6 +182,20 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     return initialBusinessProfile;
   });
+
+  const [language, setLanguageState] = useState<Language>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}language`);
+    if (saved === 'en' || saved === 'pt') return saved;
+    return profile.language || 'en';
+  });
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem(`${STORAGE_PREFIX}language`, lang);
+    setProfile((prev) => ({ ...prev, language: lang }));
+  };
+
+  const t = getTranslation(language);
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}role`);
@@ -663,6 +682,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [currentUser, currentRole]);
 
   const updateProfile = (updates: Partial<BusinessProfile>) => {
+    if (updates.language && (updates.language === 'en' || updates.language === 'pt')) {
+      setLanguageState(updates.language);
+      localStorage.setItem(`${STORAGE_PREFIX}language`, updates.language);
+    }
     setProfile((prev) => ({ ...prev, ...updates }));
   };
 
@@ -1533,6 +1556,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         profile,
         updateProfile,
+        language,
+        setLanguage,
+        t,
         currentRole,
         setCurrentRole,
         permissions,

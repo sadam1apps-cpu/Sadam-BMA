@@ -21,20 +21,20 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { currentUser, currentRole, permissions } = useBusiness();
+  const { currentUser, currentRole, permissions, language, t } = useBusiness();
 
   if (!isOpen) return null;
 
   const roleName = currentUser ? currentUser.role : currentRole;
-  const userName = currentUser ? currentUser.name : 'Store Session';
+  const userName = currentUser ? currentUser.name : (language === 'pt' ? 'Sessão do Terminal' : 'Store Session');
   const hasCustomOverrides =
     Boolean(currentUser?.customPermissions && Object.keys(currentUser.customPermissions).length > 0);
 
   const categories = [
-    { id: 'financial', title: 'Financial & Cash Balances' },
-    { id: 'pos', title: 'POS Operations & Invoicing' },
-    { id: 'inventory', title: 'Inventory & Products' },
-    { id: 'management', title: 'Staff, Team & Reports' },
+    { id: 'financial', title: language === 'pt' ? 'Financeiro e Saldos de Caixa' : 'Financial & Cash Balances' },
+    { id: 'pos', title: language === 'pt' ? 'Operações POS e Faturação' : 'POS Operations & Invoicing' },
+    { id: 'inventory', title: language === 'pt' ? 'Inventário e Produtos' : 'Inventory & Products' },
+    { id: 'management', title: language === 'pt' ? 'Equipa, Funcionários e Relatórios' : 'Staff, Team & Reports' },
   ] as const;
 
   const permissionKeys = Object.keys(PERMISSION_METADATA) as (keyof typeof PERMISSION_METADATA)[];
@@ -52,11 +52,11 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-sm sm:text-base text-white">
-                  Active Permissions
+                  {language === 'pt' ? 'Permissões Ativas' : 'Active Permissions'}
                 </h3>
                 {hasCustomOverrides && (
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    Customized
+                    {language === 'pt' ? 'Personalizado' : 'Customized'}
                   </span>
                 )}
               </div>
@@ -80,11 +80,11 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
           <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-start gap-2.5 text-indigo-900 text-xs">
             <UserCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold">Role: </span>
+              <span className="font-bold">{language === 'pt' ? 'Cargo: ' : 'Role: '}</span>
               <span className="capitalize">{roleName.replace('_', ' ')}</span>.
               {hasCustomOverrides
-                ? ' This staff member has custom permission overrides applied by the store administrator.'
-                : ' Standard permissions applied according to the company role policy.'}
+                ? (language === 'pt' ? ' Este funcionário tem permissões personalizadas atribuídas pelo administrador.' : ' This staff member has custom permission overrides applied by the store administrator.')
+                : (language === 'pt' ? ' Permissões padrão aplicadas de acordo com as diretrizes do cargo.' : ' Standard permissions applied according to the company role policy.')}
             </div>
           </div>
 
@@ -126,7 +126,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                             </span>
                             {isOverridden && (
                               <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                Overridden
+                                {language === 'pt' ? 'Alterado' : 'Overridden'}
                               </span>
                             )}
                           </div>
@@ -137,12 +137,12 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                           {isGranted ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Allowed</span>
+                              <span>{language === 'pt' ? 'Permitido' : 'Allowed'}</span>
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
                               <Lock className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Restricted</span>
+                              <span>{language === 'pt' ? 'Restrito' : 'Restricted'}</span>
                             </span>
                           )}
                         </div>
@@ -162,7 +162,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
-            Close
+            {t.close}
           </button>
         </div>
       </div>

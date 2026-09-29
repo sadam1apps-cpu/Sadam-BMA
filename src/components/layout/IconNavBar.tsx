@@ -22,12 +22,13 @@ export const IconNavBar: React.FC = () => {
     overdueCustomers,
     permissions,
     currentRole,
+    t,
   } = useBusiness();
 
   const navItems = [
     {
       id: 'dashboard',
-      label: 'Overview',
+      label: t.overview,
       tooltip: 'Dashboard & Daily KPIs',
       icon: LayoutDashboard,
       badge: null,
@@ -35,7 +36,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'sales',
-      label: 'Sales',
+      label: t.sales,
       tooltip: 'Sales & Invoices',
       icon: Receipt,
       badge: null,
@@ -43,7 +44,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'inventory',
-      label: 'Stock',
+      label: t.inventory,
       tooltip: 'Products & Inventory',
       icon: Package,
       badge: lowStockProducts.length > 0 ? lowStockProducts.length : null,
@@ -52,7 +53,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'customers',
-      label: 'Customers',
+      label: t.customers,
       tooltip: 'Customers & Debts',
       icon: Users,
       badge: overdueCustomers.length > 0 ? overdueCustomers.length : null,
@@ -61,7 +62,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'suppliers',
-      label: 'Suppliers',
+      label: t.suppliers,
       tooltip: 'Vendor Accounts',
       icon: Truck,
       badge: null,
@@ -69,7 +70,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'expenses',
-      label: 'Expenses',
+      label: t.expenses,
       tooltip: 'Operating Expenses',
       icon: TrendingDown,
       badge: null,
@@ -77,7 +78,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'employees',
-      label: 'Staff',
+      label: t.staff,
       tooltip: 'Employees & Permissions',
       icon: UserCheck,
       badge: null,
@@ -85,7 +86,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'cash_bank',
-      label: 'Cash & Bank',
+      label: t.cash_bank,
       tooltip: 'Cash Till & Bank Accounts',
       icon: Landmark,
       badge: null,
@@ -93,7 +94,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'reports',
-      label: 'Reports',
+      label: t.reports,
       tooltip: 'Reports & P&L Analysis',
       icon: FileBarChart,
       badge: null,
@@ -101,7 +102,7 @@ export const IconNavBar: React.FC = () => {
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: t.settings,
       tooltip: 'Store Settings & Currency',
       icon: Settings,
       badge: null,
