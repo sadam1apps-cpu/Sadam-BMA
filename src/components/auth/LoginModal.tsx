@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { UserRole } from '../../types';
 import {
   Lock,
   KeyRound,
   Mail,
   User,
-  Shield,
   ArrowRight,
   CheckCircle2,
   AlertCircle,
@@ -54,8 +52,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'pin' | 'password'>('pin');
   const [pinInput, setPinInput] = useState<string>('');
-  const [staffIdentifier, setStaffIdentifier] = useState<string>('');
-  const [showIdentifierInput, setShowIdentifierInput] = useState<boolean>(false);
   const [emailInput, setEmailInput] = useState<string>('');
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -154,7 +150,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     if (nextAttempts >= 5) {
       setLockoutSeconds(30);
-      setErrorMessage('Too many failed attempts. Terminal locked for 30s.');
+      setErrorMessage(
+        language === 'pt'
+          ? 'Demasiadas tentativas falhadas. Terminal bloqueado por 30s.'
+          : 'Too many failed attempts. Terminal locked for 30s.'
+      );
     } else {
       setErrorMessage(msg);
     }
@@ -165,7 +165,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMessage(null);
 
     if (!pinToSubmit || pinToSubmit.length < 4) {
-      setErrorMessage('Please enter 4-digit staff PIN.');
+      setErrorMessage(
+        language === 'pt' ? 'Insira o PIN de 4 dígitos.' : 'Please enter 4-digit staff PIN.'
+      );
       return;
     }
 
@@ -182,14 +184,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           if (onClose) onClose();
         }, 300);
       } else {
-        handleAuthFailure(res.message || 'Incorrect PIN. Try again.');
+        handleAuthFailure(res.message || (language === 'pt' ? 'PIN incorreto. Tente novamente.' : 'Incorrect PIN. Try again.'));
       }
       return;
     }
 
-    // Secure PIN Authentication without public user enumeration
-    const identifier = staffIdentifier.trim() || undefined;
-    const res = loginWithPin(pinToSubmit, identifier);
+    const res = loginWithPin(pinToSubmit);
 
     if (res.success) {
       setFailedAttempts(0);
@@ -199,10 +199,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         if (onClose) onClose();
       }, 300);
     } else {
-      if (res.matchesCount && res.matchesCount > 1) {
-        setShowIdentifierInput(true);
-      }
-      handleAuthFailure(res.message || 'Incorrect PIN. Try again.');
+      handleAuthFailure(res.message || (language === 'pt' ? 'PIN incorreto. Tente novamente.' : 'Incorrect PIN. Try again.'));
     }
   };
 
@@ -220,7 +217,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         if (onClose) onClose();
       }, 300);
     } else {
-      handleAuthFailure(res.message || 'Invalid email or password.');
+      handleAuthFailure(res.message || (language === 'pt' ? 'Email ou palavra-passe inválidos.' : 'Invalid email or password.'));
     }
   };
 
@@ -248,9 +245,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         disabled={lockoutSeconds > 0 || isConnecting}
       />
 
-      <div className="w-full max-w-[340px] sm:max-w-[390px] bg-white rounded-2xl sm:rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,35,110,0.45)] border border-[#0052CC]/25 overflow-hidden flex flex-col my-auto relative shrink-0 transition-all">
+      <div className="w-full max-w-[340px] sm:max-w-[370px] bg-white rounded-2xl sm:rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,35,110,0.45)] border border-[#0052CC]/25 overflow-hidden flex flex-col my-auto relative shrink-0 transition-all">
         
-        {/* Optional Close button (only when modal is optional dialog) */}
+        {/* Optional Close button */}
         {!fullScreen && !isScreenLocked && onClose && (
           <button
             type="button"
@@ -262,62 +259,52 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         )}
 
-        {/* Corporate Deep Navy Header */}
-        <div className="bg-[#0B1B3D] text-white px-3.5 py-2.5 sm:px-5 sm:py-3 relative overflow-hidden shrink-0">
-          <div className="flex items-center justify-between gap-2.5">
+        {/* Clean Header */}
+        <div className="bg-[#0B1B3D] text-white px-3.5 py-2.5 sm:px-4 sm:py-3 relative overflow-hidden shrink-0">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#0066FF] to-[#00388A] flex items-center justify-center text-white shadow-md shadow-[#0052CC]/30 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0066FF] to-[#00388A] flex items-center justify-center text-white shadow-md shadow-[#0052CC]/30 shrink-0">
                 {isScreenLocked ? <Lock className="w-4 h-4 text-white" /> : <Store className="w-4 h-4 text-white" />}
               </div>
               <div className="min-w-0">
                 <h2 className="text-xs sm:text-sm font-bold text-white truncate leading-tight tracking-tight">
                   {profile.name || t.terminalAccess}
                 </h2>
-                <p className="text-[10px] sm:text-[11px] text-slate-300 truncate leading-normal">
-                  {isScreenLocked
-                    ? `${t.lockedSessionFor} ${currentUser?.name || 'Staff'}`
-                    : t.secureStaffAuth}
-                </p>
+                {isScreenLocked && currentUser && (
+                  <p className="text-[10px] text-slate-300 truncate leading-normal">
+                    {t.lockedSessionFor} {currentUser.name}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {/* Language Switcher Badge on Login / Lock */}
-              <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/80 p-0.5 text-[10px] font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setLanguage('en')}
-                  className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                    language === 'en' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Switch to English"
-                >
-                  EN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLanguage('pt')}
-                  className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
-                    language === 'pt' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Mudar para Português"
-                >
-                  PT
-                </button>
-              </div>
-
-              <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-[#0052CC]/25 text-[#93C5FD] border border-[#0052CC]/40 items-center gap-1 shadow-2xs">
-                <Shield className="w-3 h-3 text-[#38BDF8]" />
-                <span>{t.protectedBadge}</span>
-              </span>
+            {/* Language Switcher Badge on Login / Lock */}
+            <div className="inline-flex rounded-lg bg-slate-800/80 border border-slate-700/80 p-0.5 text-[10px] font-semibold shrink-0">
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  language === 'en' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Switch to English"
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('pt')}
+                className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  language === 'pt' ? 'bg-[#0052CC] text-white font-bold' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Mudar para Português"
+              >
+                PT
+              </button>
             </div>
           </div>
-
-          {/* STech Accent Line Motif */}
-          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#0066FF] to-transparent opacity-80" />
         </div>
 
-        {/* Authentication Mode Tabs (When not screen locked and accounts exist) */}
+        {/* Authentication Mode Tabs */}
         {!isScreenLocked && (employees.length > 0 || !isConnecting) && (
           <div className="flex border-b border-slate-100 bg-[#F8FAFC] p-1 gap-1 shrink-0">
             <button
@@ -329,7 +316,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   : 'text-slate-600 hover:text-[#0B1B3D]'
               }`}
             >
-              <KeyRound className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0052CC]" />
+              <KeyRound className="w-3.5 h-3.5 text-[#0052CC]" />
               <span>{t.quickPin}</span>
             </button>
             <button
@@ -341,7 +328,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   : 'text-slate-600 hover:text-[#0B1B3D]'
               }`}
             >
-              <Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0052CC]" />
+              <Mail className="w-3.5 h-3.5 text-[#0052CC]" />
               <span>{t.password}</span>
             </button>
           </div>
@@ -349,69 +336,66 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         {/* Feedback / Alert Banners */}
         {errorMessage && (
-          <div className="mx-3.5 sm:mx-4 mt-2 p-1.5 sm:p-2 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-1.5 text-rose-800 text-xs shrink-0 animate-fadeIn">
+          <div className="mx-3 sm:mx-4 mt-2 p-1.5 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-1.5 text-rose-800 text-xs shrink-0 animate-fadeIn">
             <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
             <div className="font-medium leading-tight text-[11px] sm:text-xs">{errorMessage}</div>
           </div>
         )}
 
         {lockoutSeconds > 0 && (
-          <div className="mx-3.5 sm:mx-4 mt-2 p-1.5 sm:p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs shrink-0">
-            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="mx-3 sm:mx-4 mt-2 p-1.5 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs shrink-0">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <div className="font-semibold text-[11px] sm:text-xs">
-              Security lockout active: Retry in <strong>{lockoutSeconds}s</strong>
+              {language === 'pt' ? 'Bloqueio ativo: Aguarde' : 'Lockout active: Retry in'} <strong>{lockoutSeconds}s</strong>
             </div>
           </div>
         )}
 
         {successAnimation && (
-          <div className="mx-3.5 sm:mx-4 mt-2 p-1.5 sm:p-2 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-emerald-800 text-xs animate-pulse shrink-0">
+          <div className="mx-3 sm:mx-4 mt-2 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-emerald-800 text-xs animate-pulse shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <div className="font-semibold text-[11px] sm:text-xs">
-              {successUser ? `Access Granted: ${successUser}` : 'Access Granted. Entering session...'}
+              {successUser ? `${language === 'pt' ? 'Sessão iniciada:' : 'Access Granted:'} ${successUser}` : (language === 'pt' ? 'Sessão iniciada...' : 'Access Granted...')}
             </div>
           </div>
         )}
 
-        {/* Modal Main Body (Tailored for zero vertical scroll on all screens) */}
-        <div className="px-3 py-2 sm:px-4 sm:py-3 flex-1 flex flex-col justify-center">
+        {/* Modal Main Body */}
+        <div className="px-3.5 py-3 sm:px-4 sm:py-3.5 flex-1 flex flex-col justify-center">
 
-          {/* 1. SEAMLESS DATABASE CONNECTING STATE */}
-          {/* Shown while sync is active; NEVER flashes 'create owner' */}
+          {/* Database Connecting State */}
           {isConnecting && (
-            <div className="text-center py-6 sm:py-8 space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-[#EBF3FF] border border-[#B9D5FF] flex items-center justify-center text-[#0052CC] shadow-sm relative">
-                <RefreshCw className="w-6 h-6 animate-spin text-[#0052CC]" />
-                <span className="w-2.5 h-2.5 rounded-full bg-[#0066FF] absolute -top-1 -right-1 ring-2 ring-white animate-pulse" />
+            <div className="text-center py-6 space-y-2.5">
+              <div className="w-10 h-10 mx-auto rounded-2xl bg-[#EBF3FF] border border-[#B9D5FF] flex items-center justify-center text-[#0052CC] shadow-xs">
+                <RefreshCw className="w-5 h-5 animate-spin text-[#0052CC]" />
               </div>
-              <div className="space-y-1">
+              <div>
                 <h3 className="text-xs sm:text-sm font-bold text-[#0B1B3D]">
                   {t.connectingToDatabase}
                 </h3>
-                <p className="text-[11px] text-slate-500 max-w-[240px] mx-auto leading-relaxed">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {t.syncingStaffCredentials}
                 </p>
               </div>
             </div>
           )}
 
-          {/* 2. CONFIRMED EMPTY DATABASE STATE */}
-          {/* ONLY displayed if initial sync completed, zero records found, and not connecting */}
+          {/* Empty Database State */}
           {!isConnecting && employees.length === 0 && !showOwnerSetup && (
             <div className="text-center py-4 space-y-2.5">
-              <div className="w-10 h-10 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
-                <Database className="w-5 h-5 text-slate-600" />
+              <div className="w-9 h-9 mx-auto rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+                <Database className="w-4 h-4 text-slate-600" />
               </div>
               <div>
                 <h3 className="text-xs font-bold text-[#0B1B3D]">
                   {t.noStaffConfigured}
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-normal">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {t.initializeOwner}
                 </p>
               </div>
 
-              <div className="flex items-center justify-center gap-2 pt-1.5">
+              <div className="flex items-center justify-center gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => syncFromSheets()}
@@ -423,7 +407,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowOwnerSetup(true)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#0052CC] hover:bg-[#0043A6] text-white flex items-center gap-1.5 cursor-pointer shadow-sm shadow-[#0052CC]/30 transition-all"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#0052CC] hover:bg-[#0043A6] text-white flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
                 >
                   <Plus className="w-3 h-3" />
                   <span>{t.createOwner}</span>
@@ -432,7 +416,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           )}
 
-          {/* 3. INITIAL OWNER REGISTRATION (If user clicked Create Owner on empty DB) */}
+          {/* Initial Owner Setup */}
           {!isConnecting && employees.length === 0 && showOwnerSetup && (
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between pb-1 border-b border-slate-100">
@@ -494,7 +478,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 type="button"
                 onClick={() => {
                   if (!ownerName.trim()) {
-                    setErrorMessage('Please enter owner name.');
+                    setErrorMessage(language === 'pt' ? 'Insira o nome do proprietário.' : 'Please enter owner name.');
                     return;
                   }
                   const newEmp = addEmployee({
@@ -514,14 +498,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   setShowOwnerSetup(false);
                   if (onClose) onClose();
                 }}
-                className="w-full py-2 bg-[#0052CC] hover:bg-[#0043A6] text-white rounded-xl font-bold text-xs cursor-pointer shadow-md shadow-[#0052CC]/25 transition-all mt-1"
+                className="w-full py-1.5 bg-[#0052CC] hover:bg-[#0043A6] text-white rounded-xl font-bold text-xs cursor-pointer shadow-xs transition-all mt-1"
               >
                 {language === 'pt' ? 'Guardar e Entrar no Terminal' : 'Save & Enter Terminal'}
               </button>
             </div>
           )}
 
-          {/* 4. ACTIVE QUICK PIN TERMINAL (NO PUBLIC DROPDOWN) */}
+          {/* Quick PIN Terminal */}
           {(employees.length > 0 || isScreenLocked) && !isConnecting && activeTab === 'pin' && (
             <div className="space-y-2">
               
@@ -550,39 +534,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               )}
 
-              {/* Optional Staff Identifier Input (for shared default PIN environments) */}
-              {!isScreenLocked && showIdentifierInput && (
-                <div className="bg-[#F8FAFC] p-2 rounded-xl border border-slate-200 animate-fadeIn">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                      {language === 'pt' ? 'Email Profissional ou Utilizador' : 'Work Email or Username'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowIdentifierInput(false);
-                        setStaffIdentifier('');
-                      }}
-                      className="text-[9px] text-slate-400 hover:text-slate-600"
-                    >
-                      {language === 'pt' ? 'Ocultar' : 'Hide'}
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <User className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={staffIdentifier}
-                      onChange={(e) => setStaffIdentifier(e.target.value)}
-                      placeholder="e.g. staff@company.com"
-                      className="w-full pl-7 pr-2 py-1 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0052CC] bg-white"
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* Masked PIN Indicators (Cobalt dots) */}
-              <div className="flex flex-col items-center justify-center py-0.5">
+              <div className="flex items-center justify-center py-1">
                 <div className="flex items-center gap-3">
                   {[0, 1, 2, 3].map((idx) => {
                     const filled = pinInput.length > idx;
@@ -598,20 +551,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     );
                   })}
                 </div>
-                <div className="text-[10px] text-slate-400 font-medium mt-1">
-                  {t.enterPinPrompt}
-                </div>
               </div>
 
-              {/* Responsive 3x4 Touch Keypad (Zero-scroll compact design) */}
-              <div className="grid grid-cols-3 gap-1 sm:gap-1.5 max-w-[260px] sm:max-w-[280px] mx-auto w-full">
+              {/* Responsive 3x4 Touch Keypad */}
+              <div className="grid grid-cols-3 gap-1 sm:gap-1.5 max-w-[250px] sm:max-w-[270px] mx-auto w-full">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                   <button
                     key={digit}
                     type="button"
                     disabled={lockoutSeconds > 0}
                     onClick={() => handleKeypadPress(digit)}
-                    className="h-8.5 sm:h-10 rounded-xl bg-slate-50/90 hover:bg-[#F0F5FF] hover:text-[#0052CC] active:bg-[#D0E2FF]/60 text-[#0B1B3D] text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                    className="h-8.5 sm:h-9.5 rounded-xl bg-slate-50/90 hover:bg-[#F0F5FF] hover:text-[#0052CC] active:bg-[#D0E2FF]/60 text-[#0B1B3D] text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
                   >
                     {digit}
                   </button>
@@ -621,7 +571,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   type="button"
                   disabled={lockoutSeconds > 0}
                   onClick={() => handleKeypadPress('clear')}
-                  className="h-8.5 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                  className="h-8.5 sm:h-9.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
                 >
                   {t.clear}
                 </button>
@@ -630,7 +580,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   type="button"
                   disabled={lockoutSeconds > 0}
                   onClick={() => handleKeypadPress('0')}
-                  className="h-8.5 sm:h-10 rounded-xl bg-slate-50/90 hover:bg-[#F0F5FF] hover:text-[#0052CC] active:bg-[#D0E2FF]/60 text-[#0B1B3D] text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 shadow-2xs"
+                  className="h-8.5 sm:h-9.5 rounded-xl bg-slate-50/90 hover:bg-[#F0F5FF] hover:text-[#0052CC] active:bg-[#D0E2FF]/60 text-[#0B1B3D] text-base sm:text-lg font-bold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40 shadow-2xs"
                 >
                   0
                 </button>
@@ -639,41 +589,29 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   type="button"
                   disabled={lockoutSeconds > 0}
                   onClick={() => handleKeypadPress('backspace')}
-                  className="h-8.5 sm:h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                  className="h-8.5 sm:h-9.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold border border-slate-200/80 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
                   aria-label="Backspace"
                 >
                   ⌫
                 </button>
               </div>
 
-              {/* Submit Action & Optional Disambiguation Link */}
-              <div className="space-y-1 pt-0.5">
+              {/* Submit Action */}
+              <div className="pt-0.5">
                 <button
                   type="button"
                   disabled={lockoutSeconds > 0 || pinInput.length < 4}
                   onClick={() => submitPin()}
-                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-sm shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <span>{isScreenLocked ? (language === 'pt' ? 'Desbloquear Terminal' : 'Unlock Terminal') : t.signIn}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-
-                {!isScreenLocked && !showIdentifierInput && (
-                  <div className="text-center pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowIdentifierInput(true)}
-                      className="text-[10px] text-slate-400 hover:text-[#0052CC] font-medium transition-colors cursor-pointer"
-                    >
-                      {language === 'pt' ? 'Vários funcionários neste terminal? Especificar Email' : 'Multiple staff on this terminal? Specify Work Email'}
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           )}
 
-          {/* 5. EMAIL & PASSWORD TAB */}
+          {/* Email & Password Tab */}
           {employees.length > 0 && !isScreenLocked && !isConnecting && activeTab === 'password' && (
             <form onSubmit={handlePasswordLogin} className="space-y-2.5 py-1">
               <div>
@@ -687,7 +625,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     required
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="e.g. staff@company.com"
+                    placeholder="staff@company.com"
                     className="w-full pl-8 pr-3 py-1.5 sm:py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0052CC] focus:border-[#0052CC] bg-white text-[#0B1B3D]"
                   />
                 </div>
@@ -720,7 +658,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="submit"
                 disabled={lockoutSeconds > 0}
-                className="w-full py-2 sm:py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-md shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] mt-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-2 sm:py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0052CC] to-[#00388A] hover:from-[#0047BA] hover:to-[#002F75] text-white font-bold text-xs sm:text-sm shadow-sm shadow-[#0052CC]/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99] mt-1 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <span>{t.signIn}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -729,13 +667,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           )}
 
         </div>
-
-        {/* Corporate Security Guarantee Footer (STech Color Standardized) */}
-        <div className="bg-[#F8FAFC] px-3 py-1.5 sm:py-2 border-t border-slate-100 text-center flex items-center justify-center gap-1.5 text-[9px] sm:text-[10px] text-slate-400 shrink-0">
-          <Shield className="w-3 h-3 text-[#0052CC]" />
-          <span>{language === 'pt' ? 'Acesso Seguro ao Terminal POS • STech Enterprise' : 'Protected POS Access • Enterprise Security Engine'}</span>
-        </div>
-
       </div>
     </div>
   );
