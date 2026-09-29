@@ -103,6 +103,36 @@ export const ManageEmployeeModal: React.FC<ManageEmployeeModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isOwner = (currentUser?.role || currentRole) === 'owner';
+  const isSuperior = !isSelf && !isOwner && employeeToEdit && targetCurrentLevel > myLevel;
+
+  if (isSuperior) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+        <div className="w-full max-w-md bg-white rounded-2xl p-6 text-center shadow-2xl border border-slate-200 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-slate-900">
+              {language === 'pt' ? 'Acesso Restrito' : 'Restricted Superior Account'}
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              {t.superiorRestrictedDesc}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+          >
+            {t.close}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Compute effective permissions for preview
   const defaultRolePerms = DEFAULT_ROLE_PERMISSIONS[role];
   const effectivePermissions: RolePermissions = {

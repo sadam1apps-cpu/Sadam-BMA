@@ -46,6 +46,24 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
+  const [viewScope, setViewScope] = useState<'accessible' | 'all'>('accessible');
+
+  const myRole = currentUser?.role || currentRole;
+  const myLevel = ROLE_HIERARCHY[myRole] || 1;
+  const isOwner = myRole === 'owner';
+
+  // Subordinates can only see details of those under them or who have the same roles
+  const accessibleEmployees = employees.filter((emp) => {
+    if (isOwner) return true;
+    const targetLevel = ROLE_HIERARCHY[emp.role] || 1;
+    return targetLevel <= myLevel || emp.id === currentUser?.id;
+  });
+
+  const displayedEmployees = isOwner
+    ? employees
+    : viewScope === 'all'
+    ? employees
+    : accessibleEmployees;
 
   const roleBadges: Record<UserRole, { label: string; color: string }> = {
     owner: {
@@ -67,11 +85,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
   };
 
   const totalMonthlyPayroll = employees.reduce((acc, e) => acc + (e.monthlySalary || 0), 0);
+  const accessiblePayrollTotal = accessibleEmployees.reduce((acc, e) => acc + (e.monthlySalary || 0), 0);
+  const canViewExecutivePayroll = isOwner || permissions.canViewProfits;
 
   const pageSize = 6;
-  const totalPages = Math.ceil(employees.length / pageSize) || 1;
+  const totalPages = Math.ceil(displayedEmployees.length / pageSize) || 1;
   const validPage = Math.min(currentPage, totalPages);
-  const paginatedEmployees = employees.slice((validPage - 1) * pageSize, validPage * pageSize);
+  const paginatedEmployees = displayedEmployees.slice((validPage - 1) * pageSize, validPage * pageSize);
 
   const togglePinReveal = (empId: string) => {
     setRevealedPins((prev) => ({
@@ -175,13 +195,59 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
             {t.monthlyPayroll}
           </span>
           <div className="text-sm sm:text-xl font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
-            {profile.currency}{totalMonthlyPayroll.toLocaleString()}
+            {canViewExecutivePayroll
+              ? `${profile.currency}${totalMonthlyPayroll.toLocaleString()}`
+              : `${profile.currency}${accessiblePayrollTotal.toLocaleString()}`}
           </div>
-          <span className="text-[10px] text-slate-500 hidden sm:block">
-            {language === 'pt' ? 'Total salarial base' : 'Base payroll liability'}
+          <span className="text-[10px] text-slate-500 hidden sm:block truncate">
+            {canViewExecutivePayroll
+              ? (language === 'pt' ? 'Total salarial da empresa' : 'Total company base payroll')
+              : (language === 'pt' ? 'Sua equipa direta e pares' : 'Direct & peer staff only')}
           </span>
         </div>
       </div>
+
+      {/* Scope Selector Bar for Hierarchy & Superior Protection */}
+      {!isOwner && (
+        <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex items-center justify-between gap-2 shadow-2xs shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Shield className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span className="text-xs font-semibold text-slate-700 truncate">
+              {viewScope === 'accessible' ? t.myAccessibleTeam : t.allStaffOrganization}
+            </span>
+          </div>
+          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-[10px] sm:text-xs font-semibold shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setViewScope('accessible');
+                setCurrentPage(1);
+              }}
+              className={`px-2 sm:px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                viewScope === 'accessible'
+                  ? 'bg-white text-indigo-700 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t.myAccessibleTeam}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewScope('all');
+                setCurrentPage(1);
+              }}
+              className={`px-2 sm:px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                viewScope === 'all'
+                  ? 'bg-white text-indigo-700 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {t.allStaffOrganization}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Employees Container */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -197,21 +263,29 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
             const hasOverrides = emp.customPermissions && Object.keys(emp.customPermissions).length > 0;
             const overrideCount = emp.customPermissions ? Object.keys(emp.customPermissions).length : 0;
 
-            const myLevel = ROLE_HIERARCHY[currentUser?.role || currentRole] || 1;
             const targetLevel = ROLE_HIERARCHY[emp.role] || 1;
-            const isHigherRank = currentUser?.role === 'owner' || myLevel > targetLevel;
-            const canEditThisStaff = permissions.canManageEmployees && (isHigherRank || isSelf);
-            const canViewPin = currentUser?.role === 'owner' || isSelf || (permissions.canManageEmployees && isHigherRank);
+            const isSuperior = !isSelf && !isOwner && targetLevel > myLevel;
+            const isUnderOrSame = isOwner || isSelf || targetLevel <= myLevel;
+
+            const canEditThisStaff = permissions.canManageEmployees && (isOwner || myLevel > targetLevel || isSelf) && !isSuperior;
+            const canDeleteThisStaff = permissions.canManageEmployees && !isSelf && (isOwner || myLevel > targetLevel) && !isSuperior;
+            const canViewPin = (isOwner || isSelf) && !isSuperior;
+            const canViewSalary = (isOwner || myLevel >= targetLevel || isSelf) && !isSuperior;
 
             return (
               <div key={emp.id} className="p-3 flex flex-col gap-2 hover:bg-slate-50/70 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 pr-2 truncate">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs text-slate-900 truncate block">{emp.name}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-xs text-slate-900 truncate">{emp.name}</span>
                       {isSelf && (
                         <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-full">
                           You
+                        </span>
+                      )}
+                      {isSuperior && (
+                        <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full">
+                          {t.protectedSuperior}
                         </span>
                       )}
                       {isSuspended && (
@@ -220,7 +294,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-400 font-medium">{emp.email} • {emp.phone}</span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {isSuperior ? (
+                        <span className="italic">{t.privateSuperiorContact}</span>
+                      ) : (
+                        `${emp.email} • ${emp.phone}`
+                      )}
+                    </span>
                   </div>
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${roleInfo.color} shrink-0`}>
                     {roleInfo.label}
@@ -247,7 +327,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                   </div>
 
                   <div>
-                    {hasOverrides ? (
+                    {isSuperior ? (
+                      <span className="text-[9px] font-medium text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded-full">
+                        {language === 'pt' ? 'Cargo Superior' : 'Superior Role'}
+                      </span>
+                    ) : hasOverrides ? (
                       <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-200">
                         Customized ({overrideCount})
                       </span>
@@ -259,14 +343,29 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                   </div>
                 </div>
 
+                {/* Salary Info (Mobile) */}
+                <div className="flex items-center justify-between text-xs px-1 text-slate-600">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">{language === 'pt' ? 'Compensação' : 'Compensation'}:</span>
+                  <span className="font-semibold text-slate-800">
+                    {canViewSalary ? (
+                      `${profile.currency}${(emp.monthlySalary || 0).toLocaleString()} / mo`
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">•••••• ({t.confidentialSuperior})</span>
+                    )}
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => toggleAttendance(emp.id)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
-                      isPresent
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    disabled={isSuperior}
+                    onClick={() => !isSuperior && toggleAttendance(emp.id)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
+                      isSuperior
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                        : isPresent
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer'
                     }`}
                   >
                     {isPresent ? (
@@ -283,34 +382,42 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                   </button>
 
                   <div className="flex items-center gap-1.5">
-                    {canEditThisStaff && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(emp)}
-                        className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
-                      >
-                        Edit &amp; Perms
-                      </button>
-                    )}
+                    {isSuperior ? (
+                      <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                        {t.superiorNoAccess}
+                      </span>
+                    ) : (
+                      <>
+                        {canEditThisStaff && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(emp)}
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                          >
+                            Edit &amp; Perms
+                          </button>
+                        )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isSelf && !isSuspended) {
-                          setIsLoginModalOpen(true);
-                        }
-                      }}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                        isSelf
-                          ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 cursor-default'
-                          : isSuspended
-                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : 'bg-slate-800 hover:bg-slate-700 text-white cursor-pointer'
-                      }`}
-                      disabled={isSelf || isSuspended}
-                    >
-                      {isSelf ? 'Active' : 'Sign In'}
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!isSelf && !isSuspended) {
+                              setIsLoginModalOpen(true);
+                            }
+                          }}
+                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                            isSelf
+                              ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 cursor-default'
+                              : isSuspended
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-slate-800 hover:bg-slate-700 text-white cursor-pointer'
+                          }`}
+                          disabled={isSelf || isSuspended}
+                        >
+                          {isSelf ? 'Active' : 'Sign In'}
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -342,22 +449,29 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                 const hasOverrides = emp.customPermissions && Object.keys(emp.customPermissions).length > 0;
                 const overrideCount = emp.customPermissions ? Object.keys(emp.customPermissions).length : 0;
 
-                const myLevel = ROLE_HIERARCHY[currentUser?.role || currentRole] || 1;
                 const targetLevel = ROLE_HIERARCHY[emp.role] || 1;
-                const isHigherRank = currentUser?.role === 'owner' || myLevel > targetLevel;
-                const canEditThisStaff = permissions.canManageEmployees && (isHigherRank || isSelf);
-                const canDeleteThisStaff = permissions.canManageEmployees && !isSelf && isHigherRank;
-                const canViewPin = currentUser?.role === 'owner' || isSelf || (permissions.canManageEmployees && isHigherRank);
+                const isSuperior = !isSelf && !isOwner && targetLevel > myLevel;
+                const isUnderOrSame = isOwner || isSelf || targetLevel <= myLevel;
+
+                const canEditThisStaff = permissions.canManageEmployees && (isOwner || myLevel > targetLevel || isSelf) && !isSuperior;
+                const canDeleteThisStaff = permissions.canManageEmployees && !isSelf && (isOwner || myLevel > targetLevel) && !isSuperior;
+                const canViewPin = (isOwner || isSelf) && !isSuperior;
+                const canViewSalary = (isOwner || myLevel >= targetLevel || isSelf) && !isSuperior;
 
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
                     {/* Name & Contact */}
                     <td className="py-2.5 px-3.5 font-bold text-slate-900">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{emp.name}</span>
                         {isSelf && (
                           <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-full">
                             You
+                          </span>
+                        )}
+                        {isSuperior && (
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded-full">
+                            {t.protectedSuperior}
                           </span>
                         )}
                         {isSuspended && (
@@ -367,7 +481,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                         )}
                       </div>
                       <div className="text-[10px] text-slate-400 font-normal">
-                        {emp.email} • {emp.phone}
+                        {isSuperior ? (
+                          <span className="italic">{t.privateSuperiorContact}</span>
+                        ) : (
+                          `${emp.email} • ${emp.phone}`
+                        )}
                       </div>
                     </td>
 
@@ -413,7 +531,11 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
 
                     {/* Permissions Status */}
                     <td className="py-2.5 px-3.5">
-                      {hasOverrides ? (
+                      {isSuperior ? (
+                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                          {language === 'pt' ? 'Cargo Superior' : 'Superior Role'}
+                        </span>
+                      ) : hasOverrides ? (
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200 inline-flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-amber-600" />
@@ -431,13 +553,16 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
                     <td className="py-2.5 px-3.5">
                       <button
                         type="button"
-                        onClick={() => toggleAttendance(emp.id)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
-                          isPresent
-                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                        disabled={isSuperior}
+                        onClick={() => !isSuperior && toggleAttendance(emp.id)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                          isSuperior
+                            ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                            : isPresent
+                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200 cursor-pointer'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 cursor-pointer'
                         }`}
-                        title="Click to toggle clock-in status"
+                        title={isSuperior ? t.superiorNoAccess : 'Click to toggle clock-in status'}
                       >
                         {isPresent ? (
                           <>
@@ -455,61 +580,77 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
 
                     {/* Salary & Commission */}
                     <td className="py-2.5 px-3.5 font-bold text-slate-900">
-                      <div>{profile.currency}{(emp.monthlySalary || 0).toLocaleString()} / mo</div>
-                      <div className="text-[10px] text-slate-400 font-normal">
-                        {emp.commissionRate > 0 ? `${emp.commissionRate}% comm.` : 'No commission'}
-                      </div>
+                      {canViewSalary ? (
+                        <>
+                          <div>{profile.currency}{(emp.monthlySalary || 0).toLocaleString()} / mo</div>
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            {emp.commissionRate > 0 ? `${emp.commissionRate}% comm.` : 'No commission'}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-mono text-slate-400">••••••</div>
+                          <div className="text-[10px] text-slate-400 font-normal italic">
+                            {t.confidentialSuperior}
+                          </div>
+                        </>
+                      )}
                     </td>
 
                     {/* Actions */}
                     <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        
-                        {/* Edit Staff & Permissions */}
-                        {canEditThisStaff && (
+                      {isSuperior ? (
+                        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                          {t.superiorNoAccess}
+                        </span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Edit Staff & Permissions */}
+                          {canEditThisStaff && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(emp)}
+                              className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                              title={isSelf ? 'Edit your profile details' : 'Edit staff profile & role permissions'}
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Switch / Sign In As */}
                           <button
                             type="button"
-                            onClick={() => handleOpenEdit(emp)}
-                            className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                            title={isSelf ? 'Edit your profile details' : 'Edit staff profile & role permissions'}
+                            onClick={() => {
+                              if (!isSelf && !isSuspended) {
+                                setIsLoginModalOpen(true);
+                              }
+                            }}
+                            disabled={isSelf || isSuspended}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                              isSelf
+                                ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 cursor-default'
+                                : isSuspended
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : 'bg-slate-800 hover:bg-slate-700 text-white cursor-pointer'
+                            }`}
+                            title={isSelf ? 'Current active session' : 'Sign in using credentials'}
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            {isSelf ? 'Active Session' : 'Sign In'}
                           </button>
-                        )}
 
-                        {/* Switch / Sign In As */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSelf && !isSuspended) {
-                              setIsLoginModalOpen(true);
-                            }
-                          }}
-                          disabled={isSelf || isSuspended}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                            isSelf
-                              ? 'bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 cursor-default'
-                              : isSuspended
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              : 'bg-slate-800 hover:bg-slate-700 text-white cursor-pointer'
-                          }`}
-                          title={isSelf ? 'Current active session' : 'Sign in using credentials'}
-                        >
-                          {isSelf ? 'Active Session' : 'Sign In'}
-                        </button>
-
-                        {/* Delete Staff (if permitted and not self) */}
-                        {canDeleteThisStaff && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStaff(emp)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
-                            title="Delete staff account"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+                          {/* Delete Staff (if permitted and not self) */}
+                          {canDeleteThisStaff && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStaff(emp)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                              title="Delete staff account"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

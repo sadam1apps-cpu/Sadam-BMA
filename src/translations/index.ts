@@ -206,6 +206,14 @@ export interface TranslationDictionary {
   accountStatus: string;
   permissionsMatrix: string;
   saveStaff: string;
+  confidentialSuperior: string;
+  protectedSuperior: string;
+  myAccessibleTeam: string;
+  allStaffOrganization: string;
+  superiorNoAccess: string;
+  privateSuperiorContact: string;
+  executivePayrollRestricted: string;
+  superiorRestrictedDesc: string;
 
   // Inventory / Products
   inventoryTitle: string;
@@ -496,6 +504,14 @@ export const translations: Record<Language, TranslationDictionary> = {
     accountStatus: 'Account Status',
     permissionsMatrix: 'Custom Permissions & Privileges',
     saveStaff: 'Save Staff Member',
+    confidentialSuperior: 'Confidential (Superior Role)',
+    protectedSuperior: 'Protected Superior',
+    myAccessibleTeam: 'My Accessible Team (Peers & Subordinates)',
+    allStaffOrganization: 'All Staff Organization',
+    superiorNoAccess: 'Superior Role • No Access',
+    privateSuperiorContact: 'Confidential • Superior Role',
+    executivePayrollRestricted: 'Executive Access Required',
+    superiorRestrictedDesc: 'Details of superior accounts are confidential and restricted.',
 
     // Inventory / Products
     inventoryTitle: 'Inventory & Stock Management',
@@ -785,6 +801,14 @@ export const translations: Record<Language, TranslationDictionary> = {
     accountStatus: 'Estado da Conta',
     permissionsMatrix: 'Permissões e Privilégios Personalizados',
     saveStaff: 'Guardar Funcionário',
+    confidentialSuperior: 'Confidencial (Cargo Superior)',
+    protectedSuperior: 'Superior Protegido',
+    myAccessibleTeam: 'Minha Equipa (Pares e Subordinados)',
+    allStaffOrganization: 'Toda a Organização',
+    superiorNoAccess: 'Cargo Superior • Sem Acesso',
+    privateSuperiorContact: 'Dados Confidenciais • Cargo Superior',
+    executivePayrollRestricted: 'Acesso Executivo Necessário',
+    superiorRestrictedDesc: 'Os detalhes de contas com cargos superiores são confidenciais e restritos.',
 
     // Inventory / Products
     inventoryTitle: 'Gestão de Inventário e Stock',
