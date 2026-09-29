@@ -1,12 +1,14 @@
 import {useEffect, useRef, useState} from 'react';
 import {useRegisterSW} from 'virtual:pwa-register/react';
 
+const SEEN_VERSION_KEY = 'stech_seen_app_version';
+
 export default function UpdatePrompt() {
   const [reloading, setReloading] = useState(false);
   const reloadTimer = useRef<number | null>(null);
 
   const {
-    needRefresh: [needRefresh],
+    needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, r) {
@@ -16,18 +18,22 @@ export default function UpdatePrompt() {
       // And when the tab regains focus
       const onFocus = () => r.update();
       window.addEventListener('focus', onFocus);
-      // And every 30 minutes
-      setInterval(() => r.update(), 30 * 60 * 1000);
     },
   });
 
+  // Suppress the banner if this version was already updated on this device
   useEffect(() => {
     if (!needRefresh) return;
+    const seen = localStorage.getItem(SEEN_VERSION_KEY);
+    if (seen === __APP_VERSION__) {
+      setNeedRefresh(false);
+      return;
+    }
     const el = document.getElementById('pwa-update-banner');
     el?.focus();
-  }, [needRefresh]);
+  }, [needRefresh, setNeedRefresh]);
 
-  // Safety net: if reload stalls > 4s, force-reload anyway
+  // Safety net: if reload stalls > 4s, force-reload
   useEffect(() => {
     if (!reloading) return;
     reloadTimer.current = window.setTimeout(() => {
@@ -41,14 +47,17 @@ export default function UpdatePrompt() {
   const handleUpdate = async () => {
     if (reloading) return;
     setReloading(true);
+    // Stamp this version as seen so the banner won't reappear after reload
+    localStorage.setItem(SEEN_VERSION_KEY, __APP_VERSION__);
+    setNeedRefresh(false);
+
     try {
-      // Activates the new SW and, when it takes control, reloads the page.
       await updateServiceWorker(true);
-      // Fallback in case updateServiceWorker never resolves but SW is active:
+      // updateServiceWorker(true) reloads the page itself;
+      // if it returns without reloading, force it:
       if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
       window.location.reload();
     } catch {
-      // Even on error, force reload so user isn't stuck.
       window.location.reload();
     }
   };
