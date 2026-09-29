@@ -627,6 +627,67 @@ export async function fetchSheetViaGviz(spreadsheetId: string, sheetName: string
 }
 
 /**
+ * Safe fetch with automatic retry, jittered backoff, and timeout.
+ * Specially designed to handle Google Apps Script cold starts, lock contention,
+ * and transient network hiccups.
+ */
+async function fetchWithRetryAndBackoff(
+  url: string,
+  options: RequestInit,
+  maxRetries = 2,
+  timeoutMs = 28000
+): Promise<{ ok: boolean; status: number; text: string }> {
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const text = await res.text();
+
+      // Check if response is Google lock busy or rate-limited
+      const isGoogleBusy =
+        text.includes('busy with another staff sync') ||
+        text.includes('Service invoked too many times') ||
+        res.status === 429 ||
+        res.status === 503 ||
+        res.status === 502;
+
+      if (isGoogleBusy && attempt < maxRetries) {
+        // Back off with random jitter (1.2s - 2.5s) to allow Apps Script lock to release
+        const delay = 1200 * Math.pow(1.6, attempt) + Math.random() * 600;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      return {
+        ok: res.ok,
+        status: res.status,
+        text,
+      };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
+
+      if (attempt < maxRetries) {
+        const delay = 1200 * Math.pow(1.6, attempt) + Math.random() * 600;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+    }
+  }
+
+  throw lastError || new Error('Connection timed out or network unavailable.');
+}
+
+/**
  * Test Google Apps Script Web App connection or direct Google Spreadsheet
  */
 export async function testSheetsConnection(scriptUrl: string): Promise<{
@@ -665,20 +726,29 @@ export async function testSheetsConnection(scriptUrl: string): Promise<{
   const testUrl = `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}action=test&_t=${Date.now()}`;
 
   try {
-    const res = await fetch(testUrl, {
+    const { ok, status, text } = await fetchWithRetryAndBackoff(testUrl, {
       method: 'GET',
       mode: 'cors',
       redirect: 'follow',
-    });
+    }, 1, 15000);
 
-    if (!res.ok) {
+    if (!ok && status !== 200) {
       return {
         success: false,
-        message: `HTTP Error: ${res.status} ${res.statusText}`,
+        message: `HTTP Error: ${status}`,
       };
     }
 
-    const data = await res.json();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return {
+        success: false,
+        message: 'Invalid response from Google Apps Script. Check deployment permissions (Access: Anyone).',
+      };
+    }
+
     if (data.status === 'success') {
       return {
         success: true,
@@ -849,17 +919,26 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
 
   try {
     recordApiCall('read');
-    const res = await fetch(getUrl, {
+    const { ok, status, text } = await fetchWithRetryAndBackoff(getUrl, {
       method: 'GET',
       mode: 'cors',
       redirect: 'follow',
-    });
+    }, 2, 28000);
 
-    if (!res.ok) {
-      return { success: false, message: `HTTP ${res.status}: ${res.statusText}` };
+    if (!ok && status !== 200) {
+      return { success: false, message: `Cloud database server returned HTTP ${status}. Retrying in background.` };
     }
 
-    const json = await res.json();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      if (text.includes('Service invoked too many times')) {
+        return { success: false, message: 'Google Sheets rate limit reached. Re-syncing automatically shortly.' };
+      }
+      return { success: false, message: 'Cloud database temporarily busy. Re-syncing automatically shortly.' };
+    }
+
     if (json.status === 'success' && json.data) {
       return { success: true, data: json.data };
     } else {
@@ -896,7 +975,7 @@ export async function pushAllToSheets(
   try {
     recordApiCall('write');
     // Send as text/plain to avoid preflight CORS check in Google Apps Script
-    const res = await fetch(cleanUrl, {
+    const { ok, status, text } = await fetchWithRetryAndBackoff(cleanUrl, {
       method: 'POST',
       mode: 'cors',
       headers: {
@@ -907,13 +986,22 @@ export async function pushAllToSheets(
         data,
       }),
       redirect: 'follow',
-    });
+    }, 2, 30000);
 
-    if (!res.ok) {
-      return { success: false, message: `HTTP ${res.status}: ${res.statusText}` };
+    if (!ok && status !== 200) {
+      return { success: false, message: `Cloud database returned HTTP ${status}. Retrying in background.` };
     }
 
-    const json = await res.json();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      if (text.includes('Service invoked too many times')) {
+        return { success: false, message: 'Google Sheets rate limit reached. Retrying automatically shortly.' };
+      }
+      return { success: false, message: 'Cloud database temporarily busy. Retrying in background.' };
+    }
+
     if (json.status === 'success') {
       return {
         success: true,
@@ -925,7 +1013,7 @@ export async function pushAllToSheets(
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Error pushing to Google Sheets. Verify Web App deployment.',
+      message: err.message || 'Error pushing to Google Sheets. Will retry automatically.',
     };
   }
 }

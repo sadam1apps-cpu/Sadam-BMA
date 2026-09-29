@@ -399,6 +399,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const pendingChangesRef = useRef<number>(0);
   const debounceTimerRef = useRef<any>(null);
   const isSyncingFromSheetsRef = useRef<boolean>(false);
+  const isSyncOperationActiveRef = useRef<boolean>(false);
+  const pendingPushQueuedRef = useRef<boolean>(false);
   const isInitialMount = useRef<boolean>(true);
 
   const setSyncStrategy = (strat: 'smart_batch' | 'interval_15m' | 'manual') => {
@@ -449,10 +451,18 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setIsInitialSyncLoading(false);
       return false;
     }
+
+    // Mutual exclusion: avoid overlapping active sync operations
+    if (isSyncOperationActiveRef.current) {
+      return false;
+    }
+
+    isSyncOperationActiveRef.current = true;
+    isSyncingFromSheetsRef.current = true;
     setSheetsSyncStatus('syncing');
     setSyncError(null);
+
     try {
-      isSyncingFromSheetsRef.current = true;
       const res = await fetchAllFromSheets(sheetsUrl);
       if (res.success && res.data) {
         const d = res.data;
@@ -513,17 +523,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLastSyncedAt(nowStr);
         localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
         setSheetsSyncStatus('connected');
+        setSyncError(null);
         setIsInitialSyncLoading(false);
         refreshQuotaStats();
-        setTimeout(() => {
-          isSyncingFromSheetsRef.current = false;
-        }, 600);
         return true;
       } else {
         setSheetsSyncStatus('error');
         setSyncError(res.message || 'Failed to pull data from Google Sheets.');
         setIsInitialSyncLoading(false);
-        isSyncingFromSheetsRef.current = false;
         refreshQuotaStats();
         return false;
       }
@@ -531,16 +538,35 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSheetsSyncStatus('error');
       setSyncError(err.message || 'Network failure while syncing from Google Sheets.');
       setIsInitialSyncLoading(false);
-      isSyncingFromSheetsRef.current = false;
       refreshQuotaStats();
       return false;
+    } finally {
+      isSyncOperationActiveRef.current = false;
+      // Allow React state batching and side-effects to settle before unlocking mutation watcher
+      setTimeout(() => {
+        isSyncingFromSheetsRef.current = false;
+        // If a push was requested while pull was in flight, execute it cleanly
+        if (pendingPushQueuedRef.current) {
+          pendingPushQueuedRef.current = false;
+          pushToSheetsNow();
+        }
+      }, 1200);
     }
   };
 
   const pushToSheetsNow = async (): Promise<boolean> => {
     if (!sheetsUrl || !sheetsUrl.trim()) return false;
+
+    // Concurrency protection: if already syncing/pushing, queue this push to execute next
+    if (isSyncOperationActiveRef.current) {
+      pendingPushQueuedRef.current = true;
+      return true;
+    }
+
+    isSyncOperationActiveRef.current = true;
     setSheetsSyncStatus('syncing');
     setSyncError(null);
+
     try {
       const res = await pushAllToSheets(sheetsUrl, {
         products,
@@ -558,6 +584,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLastSyncedAt(nowStr);
         localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
         setSheetsSyncStatus('connected');
+        setSyncError(null);
         pendingChangesRef.current = 0;
         setPendingChangesCount(0);
         refreshQuotaStats();
@@ -573,6 +600,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSyncError(err.message || 'Network error pushing to Google Sheets.');
       refreshQuotaStats();
       return false;
+    } finally {
+      isSyncOperationActiveRef.current = false;
+      if (pendingPushQueuedRef.current) {
+        pendingPushQueuedRef.current = false;
+        setTimeout(() => {
+          pushToSheetsNow();
+        }, 500);
+      }
     }
   };
 
@@ -598,7 +633,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isInitialMount.current = false;
       return;
     }
-    if (isSyncingFromSheetsRef.current) {
+    if (isSyncingFromSheetsRef.current || isSyncOperationActiveRef.current) {
       return;
     }
     markPendingChange();
@@ -609,7 +644,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (syncStrategy !== 'interval_15m' || !sheetsUrl) return;
 
     const interval = setInterval(() => {
-      if (pendingChangesRef.current > 0) {
+      if (pendingChangesRef.current > 0 && !isSyncOperationActiveRef.current) {
         pushToSheetsNow();
       }
     }, 15 * 60 * 1000);
@@ -623,6 +658,35 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       syncFromSheets();
     }
   }, []);
+
+  // Automatic self-healing reconnection listener when user regains internet
+  useEffect(() => {
+    const handleOnline = () => {
+      if (sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current) {
+        if (pendingChangesRef.current > 0) {
+          pushToSheetsNow();
+        } else {
+          syncFromSheets();
+        }
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [sheetsUrl]);
+
+  // Self-healing auto-retry on transient sync error: if error occurred but changes are pending, retry automatically
+  useEffect(() => {
+    if (sheetsSyncStatus === 'error' && sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current) {
+      const autoRetryTimer = setTimeout(() => {
+        if (pendingChangesRef.current > 0) {
+          pushToSheetsNow();
+        } else {
+          syncFromSheets();
+        }
+      }, 15000);
+      return () => clearTimeout(autoRetryTimer);
+    }
+  }, [sheetsSyncStatus, sheetsUrl]);
 
   // Persistence side-effects
   useEffect(() => {
