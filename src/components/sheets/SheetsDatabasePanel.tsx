@@ -12,8 +12,6 @@ import {
   Check,
   Code2,
   Copy,
-  X,
-  FileCode,
 } from 'lucide-react';
 import { SELF_HEALING_APPS_SCRIPT_CODE } from '../../services/sheetsDb';
 
@@ -39,7 +37,6 @@ export const SheetsDatabasePanel: React.FC = () => {
   const [inputUrl, setInputUrl] = useState(sheetsUrl);
   const [testing, setTesting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showCodeModal, setShowCodeModal] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
@@ -316,120 +313,40 @@ export const SheetsDatabasePanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Backend Apps Script Code - Compact, Space-Efficient Copy Widget */}
-      <div className="bg-white rounded-xl border border-slate-200 p-2.5 sm:p-3 shadow-2xs flex items-center justify-between gap-2">
+      {/* Backend Apps Script Code - Clean One-Click Copy */}
+      <div className="bg-white rounded-xl border border-slate-200 p-2 sm:p-2.5 shadow-2xs flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
             <Code2 className="w-3.5 h-3.5" />
           </div>
-          <div className="min-w-0">
-            <h4 className="text-xs font-bold text-slate-900 truncate">
-              {language === 'pt' ? 'Código Apps Script (Backend)' : 'Backend Apps Script Code'}
-            </h4>
-            <p className="text-[10px] text-slate-500 truncate">
-              {language === 'pt' ? 'Extensões > Apps Script no Google Sheets' : ''}
-            </p>
-          </div>
+          <span className="text-xs font-bold text-slate-900 truncate">
+            {language === 'pt' ? 'Código Apps Script (Backend)' : 'Backend Apps Script Code'}
+          </span>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowCodeModal(true)}
-            className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-            title="View code and deployment instructions"
-          >
-            {language === 'pt' ? 'Ver' : 'View'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleCopyScript}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-              copied
-                ? 'bg-emerald-600 text-white'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-            }`}
-            title="Copy entire Apps Script code to clipboard"
-          >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-white" />
-                <span>{language === 'pt' ? 'Copiado!' : 'Copied!'}</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5 text-white" />
-                <span>{language === 'pt' ? 'Copiar Código' : 'Copy Code'}</span>
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCopyScript}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 ${
+            copied
+              ? 'bg-emerald-600 text-white'
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+          }`}
+          title="Copy Apps Script code"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-white" />
+              <span>{language === 'pt' ? 'Copiado!' : 'Copied!'}</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5 text-white" />
+              <span>{language === 'pt' ? 'Copiar Código' : 'Copy Code'}</span>
+            </>
+          )}
+        </button>
       </div>
-
-      {/* Code Viewer Modal */}
-      {showCodeModal && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
-          <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[90vh]">
-            <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <FileCode className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-bold text-xs sm:text-sm text-white">
-                  {language === 'pt' ? 'Código do Backend Google Apps Script' : 'Google Apps Script Backend Code'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCodeModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3 sm:p-4 space-y-2.5 overflow-hidden flex-1 flex flex-col">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-[11px] text-slate-600 space-y-1">
-                <span className="font-bold text-slate-800">
-                  {language === 'pt' ? 'Instruções de Instalação:' : 'Deployment Steps:'}
-                </span>
-                <ol className="list-decimal list-inside space-y-0.5 text-[10px] text-slate-500">
-                  <li>{language === 'pt' ? 'No Google Sheets, abra Extensões > Apps Script.' : 'In Google Sheets, open Extensions > Apps Script.'}</li>
-                  <li>{language === 'pt' ? 'Cole este código substituindo todo o conteúdo de Code.gs.' : 'Replace everything in Code.gs with this code.'}</li>
-                  <li>{language === 'pt' ? 'Clique em Implementar > Nova implementação > Tipo: Aplicação Web.' : 'Click Deploy > New deployment > Select type: Web app.'}</li>
-                  <li>{language === 'pt' ? 'Defina "Executar como: Eu" e "Quem tem acesso: Qualquer pessoa".' : 'Set "Execute as: Me" and "Who has access: Anyone".'}</li>
-                </ol>
-              </div>
-
-              <div className="flex-1 min-h-0 relative rounded-xl border border-slate-200 bg-slate-950 p-3 overflow-y-auto font-mono text-[10px] text-slate-300">
-                <pre className="whitespace-pre">{SELF_HEALING_APPS_SCRIPT_CODE}</pre>
-              </div>
-            </div>
-
-            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowCodeModal(false)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
-              >
-                {t.close}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopyScript}
-                className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                  copied
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-                }`}
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                <span>{copied ? (language === 'pt' ? 'Copiado!' : 'Copied!') : (language === 'pt' ? 'Copiar Todo o Código' : 'Copy All Code')}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
