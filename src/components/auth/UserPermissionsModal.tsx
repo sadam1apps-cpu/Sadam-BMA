@@ -4,12 +4,8 @@ import { PERMISSION_METADATA } from '../../types';
 import {
   Shield,
   CheckCircle2,
-  XCircle,
   X,
-  UserCheck,
-  Sparkles,
   Lock,
-  Layers,
 } from 'lucide-react';
 
 interface UserPermissionsModalProps {
@@ -30,38 +26,34 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const hasCustomOverrides =
     Boolean(currentUser?.customPermissions && Object.keys(currentUser.customPermissions).length > 0);
 
-  const categories = [
-    { id: 'financial', title: language === 'pt' ? 'Financeiro e Saldos de Caixa' : 'Financial & Cash Balances' },
-    { id: 'pos', title: language === 'pt' ? 'Operações POS e Faturação' : 'POS Operations & Invoicing' },
-    { id: 'inventory', title: language === 'pt' ? 'Inventário e Produtos' : 'Inventory & Products' },
-    { id: 'management', title: language === 'pt' ? 'Equipa, Funcionários e Relatórios' : 'Staff, Team & Reports' },
-  ] as const;
-
   const permissionKeys = Object.keys(PERMISSION_METADATA) as (keyof typeof PERMISSION_METADATA)[];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh]">
         
-        {/* Header */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
-              <Shield className="w-5 h-5" />
+        {/* Compact Header */}
+        <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
+              <Shield className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm sm:text-base text-white">
-                  {language === 'pt' ? 'Permissões Ativas' : 'Active Permissions'}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-sm text-white truncate">
+                  {language === 'pt' ? 'Permissões Ativas' : 'Active Role Permissions'}
                 </h3>
+                <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 capitalize">
+                  {roleName.replace('_', ' ')}
+                </span>
                 {hasCustomOverrides && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                     {language === 'pt' ? 'Personalizado' : 'Customized'}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
-                {userName} • {roleName.toUpperCase()}
+              <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                {userName}
               </p>
             </div>
           </div>
@@ -69,98 +61,78 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            title={t.close}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto space-y-5">
-          <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-start gap-2.5 text-indigo-900 text-xs">
-            <UserCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold">{language === 'pt' ? 'Cargo: ' : 'Role: '}</span>
-              <span className="capitalize">{roleName.replace('_', ' ')}</span>.
-              {hasCustomOverrides
-                ? (language === 'pt' ? ' Este funcionário tem permissões personalizadas atribuídas pelo administrador.' : ' This staff member has custom permission overrides applied by the store administrator.')
-                : (language === 'pt' ? ' Permissões padrão aplicadas de acordo com as diretrizes do cargo.' : ' Standard permissions applied according to the company role policy.')}
-            </div>
-          </div>
+        {/* Permissions Grid - Space-efficient 2-column layout */}
+        <div className="p-3 sm:p-4 overflow-y-auto no-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {permissionKeys.map((key) => {
+              const meta = PERMISSION_METADATA[key];
+              const isGranted = Boolean(permissions[key]);
+              const isOverridden = Boolean(
+                currentUser?.customPermissions && key in currentUser.customPermissions
+              );
 
-          {categories.map((cat) => {
-            const items = permissionKeys.filter(
-              (key) => PERMISSION_METADATA[key].category === cat.id
-            );
-
-            return (
-              <div key={cat.id} className="space-y-2">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100 pb-1">
-                  {cat.title}
-                </h4>
-                <div className="space-y-1.5">
-                  {items.map((key) => {
-                    const meta = PERMISSION_METADATA[key];
-                    const isGranted = Boolean(permissions[key]);
-                    const isOverridden = Boolean(
-                      currentUser?.customPermissions && key in currentUser.customPermissions
-                    );
-
-                    return (
-                      <div
-                        key={key}
-                        className={`p-2.5 rounded-xl border flex items-start justify-between gap-3 ${
-                          isGranted
-                            ? 'bg-emerald-50/40 border-emerald-200'
-                            : 'bg-slate-50 border-slate-200 opacity-70'
+              return (
+                <div
+                  key={key}
+                  title={meta.description}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                    isGranted
+                      ? 'bg-emerald-50/40 border-emerald-200 text-slate-900'
+                      : 'bg-slate-50 border-slate-200 opacity-60 text-slate-500'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-xs font-semibold truncate ${
+                          isGranted ? 'text-slate-900' : 'text-slate-500'
                         }`}
                       >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-xs font-bold ${
-                                isGranted ? 'text-slate-900' : 'text-slate-500 line-through'
-                              }`}
-                            >
-                              {meta.label}
-                            </span>
-                            {isOverridden && (
-                              <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                {language === 'pt' ? 'Alterado' : 'Overridden'}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{meta.description}</p>
-                        </div>
+                        {meta.label}
+                      </span>
+                      {isOverridden && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                          {language === 'pt' ? 'Alt.' : 'Mod.'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-                        <div className="shrink-0 pt-0.5">
-                          {isGranted ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{language === 'pt' ? 'Permitido' : 'Allowed'}</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
-                              <Lock className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{language === 'pt' ? 'Restrito' : 'Restricted'}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className="shrink-0">
+                    {isGranted ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>{language === 'pt' ? 'Sim' : 'Granted'}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
+                        <Lock className="w-3 h-3 text-slate-400" />
+                        <span>{language === 'pt' ? 'Não' : 'Denied'}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-slate-50 p-3 sm:p-4 border-t border-slate-200 flex justify-end">
+        {/* Compact Footer */}
+        <div className="bg-slate-50 px-4 py-2.5 border-t border-slate-100 flex items-center justify-between text-xs shrink-0">
+          <span className="text-[11px] text-slate-500">
+            {permissionKeys.filter((k) => permissions[k]).length} / {permissionKeys.length} {language === 'pt' ? 'privilégios ativos' : 'privileges active'}
+          </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             {t.close}
           </button>

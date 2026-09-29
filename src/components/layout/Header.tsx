@@ -142,21 +142,15 @@ export const Header: React.FC<HeaderProps> = ({
                       className="fixed inset-0 z-40"
                       onClick={() => setUserMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 text-slate-200 text-xs animate-fadeIn">
-                      <div className="px-3.5 py-2 border-b border-slate-700">
-                        <div className="font-bold text-white text-xs">{currentUser.name}</div>
-                        <div className="text-[11px] text-slate-400 truncate">{currentUser.email}</div>
-                        <div className="mt-1 flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 capitalize">
-                            {currentUser.role.replace('_', ' ')}
-                          </span>
-                          {currentUser.customPermissions &&
-                            Object.keys(currentUser.customPermissions).length > 0 && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                Customized
-                              </span>
-                            )}
+                    <div className="absolute right-0 mt-2 w-52 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-slate-200 text-xs animate-fadeIn">
+                      <div className="px-3 py-2 border-b border-slate-700 flex items-center justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <div className="font-bold text-white text-xs truncate">{currentUser.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{currentUser.email}</div>
                         </div>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 capitalize shrink-0">
+                          {currentUser.role.replace('_', ' ')}
+                        </span>
                       </div>
 
                       <div className="py-1">
@@ -166,13 +160,10 @@ export const Header: React.FC<HeaderProps> = ({
                             setUserMenuOpen(false);
                             setShowPermissionsModal(true);
                           }}
-                          className="w-full text-left px-3.5 py-2 hover:bg-slate-700 flex items-center gap-2.5 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                          className="w-full text-left px-3 py-1.5 hover:bg-slate-700/80 flex items-center gap-2 text-slate-300 hover:text-white cursor-pointer transition-colors"
                         >
-                          <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
-                          <div>
-                            <div className="font-medium text-xs">{language === 'pt' ? 'Minhas Permissões' : 'My Permissions'}</div>
-                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Ver direitos de acesso e restrições' : 'View access rights & restrictions'}</div>
-                          </div>
+                          <Shield className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          <span className="font-medium text-xs">{language === 'pt' ? 'Minhas Permissões' : 'My Permissions'}</span>
                         </button>
 
                         <button
@@ -181,13 +172,10 @@ export const Header: React.FC<HeaderProps> = ({
                             setUserMenuOpen(false);
                             lockScreen();
                           }}
-                          className="w-full text-left px-3.5 py-2 hover:bg-slate-700 flex items-center gap-2.5 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                          className="w-full text-left px-3 py-1.5 hover:bg-slate-700/80 flex items-center gap-2 text-slate-300 hover:text-white cursor-pointer transition-colors"
                         >
-                          <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                          <div>
-                            <div className="font-medium text-xs">{language === 'pt' ? 'Bloquear Terminal' : 'Lock Terminal'}</div>
-                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Bloquear ecrã com PIN obrigatório' : 'Lock screen with PIN required'}</div>
-                          </div>
+                          <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span className="font-medium text-xs">{language === 'pt' ? 'Bloquear Terminal' : 'Lock Terminal'}</span>
                         </button>
 
                         <button
@@ -196,16 +184,13 @@ export const Header: React.FC<HeaderProps> = ({
                             setUserMenuOpen(false);
                             setIsLoginModalOpen(true);
                           }}
-                          className="w-full text-left px-3.5 py-2 hover:bg-slate-700 flex items-center gap-2.5 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                          className="w-full text-left px-3 py-1.5 hover:bg-slate-700/80 flex items-center gap-2 text-slate-300 hover:text-white cursor-pointer transition-colors"
                         >
-                          <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <div>
-                            <div className="font-medium text-xs">{language === 'pt' ? 'Mudar de Conta' : 'Switch Staff Account'}</div>
-                            <div className="text-[10px] text-slate-400">{language === 'pt' ? 'Iniciar sessão como outro funcionário' : 'Quick sign-in as another user'}</div>
-                          </div>
+                          <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="font-medium text-xs">{language === 'pt' ? 'Mudar de Conta' : 'Switch Staff Account'}</span>
                         </button>
 
-                        <div className="border-t border-slate-700 my-1" />
+                        <div className="border-t border-slate-700/80 my-1" />
 
                         <button
                           type="button"
@@ -213,13 +198,10 @@ export const Header: React.FC<HeaderProps> = ({
                             setUserMenuOpen(false);
                             logout();
                           }}
-                          className="w-full text-left px-3.5 py-2 hover:bg-rose-500/20 flex items-center gap-2.5 text-rose-400 hover:text-rose-300 cursor-pointer transition-colors"
+                          className="w-full text-left px-3 py-1.5 hover:bg-rose-500/20 flex items-center gap-2 text-rose-400 hover:text-rose-300 cursor-pointer transition-colors"
                         >
-                          <LogOut className="w-4 h-4 shrink-0" />
-                          <div>
-                            <div className="font-medium text-xs">{language === 'pt' ? 'Terminar Sessão' : 'Sign Out'}</div>
-                            <div className="text-[10px] text-rose-300/70">{language === 'pt' ? 'Encerrar sessão de trabalho atual' : 'End active staff session'}</div>
-                          </div>
+                          <LogOut className="w-3.5 h-3.5 shrink-0" />
+                          <span className="font-medium text-xs font-semibold">{language === 'pt' ? 'Terminar Sessão' : 'Sign Out'}</span>
                         </button>
                       </div>
                     </div>
