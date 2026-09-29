@@ -696,8 +696,12 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({ onOpenNewEmployee 
 
       {/* Staff & Custom Permissions Modal */}
       <ManageEmployeeModal
+        key={editingEmployee?.id || 'new-staff'}
         isOpen={isManageModalOpen}
-        onClose={() => setIsManageModalOpen(false)}
+        onClose={() => {
+          setIsManageModalOpen(false);
+          setEditingEmployee(null);
+        }}
         employeeToEdit={editingEmployee}
       />
     </div>
