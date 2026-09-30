@@ -6,6 +6,7 @@ const SEEN_VERSION_KEY = 'stech_seen_app_version';
 export default function UpdatePrompt() {
   const [reloading, setReloading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [latchedVisible, setLatchedVisible] = useState(false);
   const reloadTimer = useRef<number | null>(null);
   const progressTimer = useRef<number | null>(null);
 
@@ -21,15 +22,17 @@ export default function UpdatePrompt() {
     },
   });
 
+  // Latch the banner: once it appears, keep it until user clicks Update
   useEffect(() => {
-    if (!needRefresh) return;
-    const seen = localStorage.getItem(SEEN_VERSION_KEY);
-    if (seen === __APP_VERSION__) {
-      setNeedRefresh(false);
-      return;
+    if (needRefresh) {
+      const seen = localStorage.getItem(SEEN_VERSION_KEY);
+      if (seen === __APP_VERSION__) {
+        // Already applied this version → don't show again
+        setNeedRefresh(false);
+        return;
+      }
+      setLatchedVisible(true);
     }
-    const el = document.getElementById('pwa-update-banner');
-    el?.focus();
   }, [needRefresh, setNeedRefresh]);
 
   // Safety net if reload stalls
@@ -49,7 +52,6 @@ export default function UpdatePrompt() {
     setProgress(0);
     localStorage.setItem(SEEN_VERSION_KEY, __APP_VERSION__);
 
-    // Animate progress from 0% → 100% over ~3.5s
     const DURATION = 3500;
     const INTERVAL = 50;
     const step = 100 / (DURATION / INTERVAL);
@@ -64,10 +66,8 @@ export default function UpdatePrompt() {
     }, INTERVAL);
 
     try {
-      // Kick off SW update in parallel
       await updateServiceWorker(false);
 
-      // Wait until progress reaches 100 (or max 4s)
       await new Promise<void>((resolve) => {
         const check = () => {
           if (progress >= 100) resolve();
@@ -76,6 +76,7 @@ export default function UpdatePrompt() {
         setTimeout(check, DURATION);
       });
 
+      setLatchedVisible(false);
       setNeedRefresh(false);
       window.location.reload();
     } catch {
@@ -84,7 +85,8 @@ export default function UpdatePrompt() {
     }
   };
 
-  if (!needRefresh) return null;
+  // Show while latched OR while needRefresh is true
+  if (!latchedVisible && !needRefresh) return null;
 
   return (
     <div
