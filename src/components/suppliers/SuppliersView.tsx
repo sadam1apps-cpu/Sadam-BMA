@@ -3,6 +3,7 @@ import { useBusiness } from '../../context/BusinessContext';
 import { Supplier, PurchaseOrder } from '../../types';
 import {
   Truck,
+  Building2,
   Plus,
   Search,
   DollarSign,
@@ -100,23 +101,33 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden space-y-2 sm:space-y-3">
       {/* Header with Vendors / Purchase Orders switcher */}
-      <div className="bg-white rounded-xl p-2.5 sm:p-3.5 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="bg-white rounded-xl p-2 sm:p-3 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 shrink-0">
+        <div className="w-full sm:w-auto">
           {/* Sub-tab segmented control: Vendors vs Purchase Orders */}
-          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1">
             <button
               type="button"
               onClick={() => {
                 setViewTab('vendors');
                 setCurrentPage(1);
               }}
-              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 viewTab === 'vendors'
                   ? 'bg-white text-indigo-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {language === 'pt' ? 'Fornecedores' : 'Vendors'} ({suppliers.length})
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
+              <span>{language === 'pt' ? 'Fornecedores' : 'Vendors'}</span>
+              <span
+                className={`inline-flex items-center justify-center px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[10px] sm:text-[11px] font-extrabold rounded-full transition-colors ${
+                  viewTab === 'vendors'
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {suppliers.length}
+              </span>
             </button>
             <button
               type="button"
@@ -124,39 +135,51 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 setViewTab('purchase_orders');
                 setCurrentPage(1);
               }}
-              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 viewTab === 'purchase_orders'
-                  ? 'bg-white text-indigo-700 shadow-xs'
+                  ? 'bg-white text-emerald-800 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {language === 'pt' ? 'Ordens de Compra (PO)' : 'Purchase Orders (PO)'} ({purchaseOrders.length})
+              <Truck className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate sm:hidden">{language === 'pt' ? 'Ordens (PO)' : 'Purchase Orders'}</span>
+              <span className="hidden sm:inline">{language === 'pt' ? 'Ordens de Compra (PO)' : 'Purchase Orders (PO)'}</span>
+              <span
+                className={`inline-flex items-center justify-center px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[10px] sm:text-[11px] font-extrabold rounded-full transition-colors ${
+                  viewTab === 'purchase_orders'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {purchaseOrders.length}
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Action Buttons: New PO & Add Supplier */}
+        <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
               setSelectedPO(null);
               setIsPOModalOpen(true);
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-bold transition-all cursor-pointer border border-emerald-300 shadow-2xs"
             title="Create a Purchase Order to order goods from suppliers"
           >
-            <Truck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{language === 'pt' ? '+ Nova OC (PO)' : '+ New PO'}</span>
+            <Truck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">{language === 'pt' ? '+ Nova OC' : '+ New PO'}</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenNewSupplier}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{language === 'pt' ? 'Adicionar Fornecedor' : 'Add Supplier'}</span>
+            <Plus className="w-3.5 h-3.5 shrink-0 text-white" />
+            <span className="truncate sm:hidden">{language === 'pt' ? '+ Fornecedor' : '+ Add Supplier'}</span>
+            <span className="hidden sm:inline">{language === 'pt' ? 'Adicionar Fornecedor' : 'Add Supplier'}</span>
           </button>
         </div>
       </div>
@@ -166,65 +189,65 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Vendors
+              {language === 'pt' ? 'Fornecedores' : 'Total Vendors'}
             </span>
             <div className="text-sm sm:text-xl font-black text-slate-900 mt-0.5 sm:mt-1">
               {suppliers.length}
             </div>
-            <span className="text-[10px] text-slate-500 hidden sm:block">Active sources</span>
+            <span className="text-[10px] text-slate-500 block truncate">{language === 'pt' ? 'Fontes ativas' : 'Active sources'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Payables Owed
+              {language === 'pt' ? 'A Pagar' : 'Payables Owed'}
             </span>
             <div className="text-sm sm:text-xl font-black text-rose-600 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalPayables.toLocaleString()}
             </div>
-            <span className="text-[10px] text-rose-600 hidden sm:block">Pending bills</span>
+            <span className="text-[10px] text-rose-600 block truncate">{language === 'pt' ? 'Contas pendentes' : 'Pending bills'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Purchases Value
+              {language === 'pt' ? 'Volume de Compras' : 'Purchases Value'}
             </span>
             <div className="text-sm sm:text-xl font-black text-indigo-600 mt-0.5 sm:mt-1 truncate">
               {profile.currency}
               {totalPurchasesValue.toLocaleString()}
             </div>
-            <span className="text-[10px] text-slate-500 hidden sm:block">Supplies to date</span>
+            <span className="text-[10px] text-slate-500 block truncate">{language === 'pt' ? 'Total acumulado' : 'Supplies to date'}</span>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              {language === 'pt' ? 'Total Encomendado' : 'PO Volume'}
+              {language === 'pt' ? 'Volume PO' : 'PO Volume'}
             </span>
             <div className="text-sm sm:text-xl font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalPOValue.toLocaleString()}
             </div>
-            <span className="text-[10px] text-slate-500 hidden sm:block">{purchaseOrders.length} orders</span>
+            <span className="text-[10px] text-slate-500 block truncate">{purchaseOrders.length} {language === 'pt' ? 'ordens' : 'orders'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              {language === 'pt' ? 'Pendentes / Trânsito' : 'Pending Delivery'}
+              {language === 'pt' ? 'Em Trânsito' : 'Pending Delivery'}
             </span>
             <div className="text-sm sm:text-xl font-black text-sky-600 mt-0.5 sm:mt-1 truncate">
               {pendingPOsCount}
             </div>
-            <span className="text-[10px] text-sky-600 hidden sm:block">Awaiting arrival</span>
+            <span className="text-[10px] text-sky-600 block truncate">{language === 'pt' ? 'Aguardando' : 'Awaiting arrival'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              {language === 'pt' ? 'Stock Recebido' : 'Received Stock'}
+              {language === 'pt' ? 'Estoque Recebido' : 'Received Stock'}
             </span>
             <div className="text-sm sm:text-xl font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
               {receivedPOsCount}
             </div>
-            <span className="text-[10px] text-emerald-600 hidden sm:block">Added to inventory</span>
+            <span className="text-[10px] text-emerald-600 block truncate">{language === 'pt' ? 'No estoque' : 'Added to inventory'}</span>
           </div>
         </div>
       )}

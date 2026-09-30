@@ -13,6 +13,7 @@ import {
   ChevronRight,
   FileText,
   ArrowRight,
+  Receipt,
 } from 'lucide-react';
 import { Quotation, Sale } from '../../types';
 import { QuotationModal } from './QuotationModal';
@@ -108,23 +109,33 @@ export const SalesView: React.FC<SalesViewProps> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden space-y-2 sm:space-y-3">
       {/* Header with Invoices / Quotations switch */}
-      <div className="bg-white rounded-xl p-2.5 sm:p-3.5 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-2 sm:gap-3">
+      <div className="bg-white rounded-xl p-2 sm:p-3 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 shrink-0">
+        <div className="w-full sm:w-auto">
           {/* Sub-tab segmented control: Invoices vs Quotations */}
-          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1">
             <button
               type="button"
               onClick={() => {
                 setViewTab('invoices');
                 setCurrentPage(1);
               }}
-              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 viewTab === 'invoices'
                   ? 'bg-white text-indigo-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {language === 'pt' ? 'Faturas' : 'Invoices'} ({sales.length})
+              <Receipt className="w-3.5 h-3.5 shrink-0" />
+              <span>{language === 'pt' ? 'Faturas' : 'Invoices'}</span>
+              <span
+                className={`inline-flex items-center justify-center px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[10px] sm:text-[11px] font-extrabold rounded-full transition-colors ${
+                  viewTab === 'invoices'
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {sales.length}
+              </span>
             </button>
             <button
               type="button"
@@ -132,40 +143,51 @@ export const SalesView: React.FC<SalesViewProps> = ({
                 setViewTab('quotations');
                 setCurrentPage(1);
               }}
-              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 viewTab === 'quotations'
                   ? 'bg-white text-indigo-700 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {language === 'pt' ? 'Orçamentos' : 'Quotations'} ({quotations.length})
+              <FileText className="w-3.5 h-3.5 shrink-0" />
+              <span>{language === 'pt' ? 'Orçamentos' : 'Quotations'}</span>
+              <span
+                className={`inline-flex items-center justify-center px-1.5 py-0.2 sm:px-2 sm:py-0.5 text-[10px] sm:text-[11px] font-extrabold rounded-full transition-colors ${
+                  viewTab === 'quotations'
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {quotations.length}
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Action Buttons: + Quotation & New Sale */}
+        <div className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
               setSelectedQuotation(null);
               setIsQuotationModalOpen(true);
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 rounded-lg text-xs font-bold transition-all cursor-pointer border border-indigo-200 shadow-2xs"
             title="Create a price quotation or estimate"
           >
-            <FileText className="w-3.5 h-3.5 text-indigo-600" />
-            <span>{language === 'pt' ? '+ Orçamento' : '+ Quotation'}</span>
+            <FileText className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span className="truncate">{language === 'pt' ? '+ Orçamento' : '+ Quotation'}</span>
           </button>
 
           {permissions.canRecordSales && (
             <button
               type="button"
               onClick={onOpenNewSale}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-1.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{language === 'pt' ? 'Nova Venda' : 'New Sale'}</span>
+              <Plus className="w-3.5 h-3.5 shrink-0 text-white" />
+              <span className="truncate sm:hidden">{language === 'pt' ? '+ Venda' : '+ New Sale'}</span>
+              <span className="hidden sm:inline">{language === 'pt' ? 'Nova Venda' : 'New Sale'}</span>
             </button>
           )}
         </div>
@@ -176,32 +198,32 @@ export const SalesView: React.FC<SalesViewProps> = ({
         <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Invoiced
+              {language === 'pt' ? 'Faturado' : 'Total Invoiced'}
             </span>
             <div className="text-xs sm:text-lg font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalSalesVolume.toLocaleString()}
             </div>
-            <span className="text-[10px] text-slate-500 hidden sm:block">{sales.length} invoices</span>
+            <span className="text-[10px] text-slate-500 block truncate">{sales.length} {language === 'pt' ? 'faturas' : 'invoices'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Collected
+              {language === 'pt' ? 'Recebido' : 'Collected'}
             </span>
             <div className="text-xs sm:text-lg font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalPaidVolume.toLocaleString()}
             </div>
-            <span className="text-[10px] text-emerald-600 hidden sm:block">Settled</span>
+            <span className="text-[10px] text-emerald-600 block truncate">{language === 'pt' ? 'Liquidado' : 'Settled'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-              Outstanding
+              {language === 'pt' ? 'Pendente (Crédito)' : 'Outstanding'}
             </span>
             <div className="text-xs sm:text-lg font-black text-rose-600 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalUnpaidVolume.toLocaleString()}
             </div>
-            <span className="text-[10px] text-rose-600 hidden sm:block">Due credit</span>
+            <span className="text-[10px] text-rose-600 block truncate">{language === 'pt' ? 'A receber' : 'Due credit'}</span>
           </div>
         </div>
       ) : (
@@ -213,7 +235,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
             <div className="text-xs sm:text-lg font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
               {profile.currency}{totalQuotedVolume.toLocaleString()}
             </div>
-            <span className="text-[10px] text-slate-500 hidden sm:block">{quotations.length} proposals</span>
+            <span className="text-[10px] text-slate-500 block truncate">{quotations.length} {language === 'pt' ? 'propostas' : 'proposals'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
@@ -223,7 +245,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
             <div className="text-xs sm:text-lg font-black text-indigo-600 mt-0.5 sm:mt-1 truncate">
               {activeQuotesCount}
             </div>
-            <span className="text-[10px] text-indigo-600 hidden sm:block">Awaiting decision</span>
+            <span className="text-[10px] text-indigo-600 block truncate">{language === 'pt' ? 'Em decisão' : 'Awaiting decision'}</span>
           </div>
 
           <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
@@ -233,7 +255,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
             <div className="text-xs sm:text-lg font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
               {convertedQuotesCount}
             </div>
-            <span className="text-[10px] text-emerald-600 hidden sm:block">Realized sales</span>
+            <span className="text-[10px] text-emerald-600 block truncate">{language === 'pt' ? 'Vendas fechadas' : 'Realized sales'}</span>
           </div>
         </div>
       )}
