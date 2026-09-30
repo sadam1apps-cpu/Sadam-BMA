@@ -12,6 +12,8 @@ import {
   Lock,
   ChevronRight,
   Landmark,
+  FileText,
+  Truck,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -116,6 +118,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveNavTab('sales')}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+            title="Manage quotations & price estimates"
+          >
+            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden sm:inline">Quotation</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveNavTab('suppliers')}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+            title="Manage Purchase Orders (PO)"
+          >
+            <Truck className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">PO</span>
+          </button>
+
           {permissions.canRecordSales && (
             <button
               type="button"

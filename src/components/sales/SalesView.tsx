@@ -11,7 +11,11 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  ArrowRight,
 } from 'lucide-react';
+import { Quotation, Sale } from '../../types';
+import { QuotationModal } from './QuotationModal';
 
 interface SalesViewProps {
   onOpenNewSale: () => void;
@@ -22,11 +26,29 @@ export const SalesView: React.FC<SalesViewProps> = ({
   onOpenNewSale,
   onOpenReceipt,
 }) => {
-  const { sales, deleteSale, permissions, profile } = useBusiness();
+  const {
+    sales,
+    quotations,
+    deleteSale,
+    deleteQuotation,
+    convertQuotationToSale,
+    permissions,
+    profile,
+    language,
+    t,
+  } = useBusiness();
+
+  const [viewTab, setViewTab] = useState<'invoices' | 'quotations'>('invoices');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<'all' | 'sent' | 'accepted' | 'converted'>('all');
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Modal State for Quotations
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+
+  // Filtered Sales
   const filteredSales = sales.filter((s) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch =
@@ -40,73 +62,181 @@ export const SalesView: React.FC<SalesViewProps> = ({
     return matchesSearch && matchesStatus;
   });
 
+  // Filtered Quotations
+  const filteredQuotations = quotations.filter((q) => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch =
+      String(q.quotationNumber || '').toLowerCase().includes(term) ||
+      String(q.customerName || '').toLowerCase().includes(term) ||
+      (q.customerPhone && String(q.customerPhone).includes(searchTerm));
+
+    const matchesStatus =
+      quoteStatusFilter === 'all' ? true : q.status === quoteStatusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // KPI Calculations
   const totalSalesVolume = sales.reduce((acc, s) => acc + s.total, 0);
   const totalPaidVolume = sales.reduce((acc, s) => acc + s.amountPaid, 0);
   const totalUnpaidVolume = sales.reduce((acc, s) => acc + s.balanceDue, 0);
 
-  // Pagination (4 per page on mobile, 7 on desktop)
+  const totalQuotedVolume = quotations.reduce((acc, q) => acc + q.total, 0);
+  const activeQuotesCount = quotations.filter((q) => q.status !== 'converted' && q.status !== 'declined').length;
+  const convertedQuotesCount = quotations.filter((q) => q.status === 'converted').length;
+
+  // Pagination
   const pageSize = 5;
-  const totalPages = Math.ceil(filteredSales.length / pageSize) || 1;
+  const activeItems = viewTab === 'invoices' ? filteredSales : filteredQuotations;
+  const totalPages = Math.ceil(activeItems.length / pageSize) || 1;
   const validPage = Math.min(currentPage, totalPages);
   const paginatedSales = filteredSales.slice((validPage - 1) * pageSize, validPage * pageSize);
+  const paginatedQuotations = filteredQuotations.slice((validPage - 1) * pageSize, validPage * pageSize);
+
+  const handleOpenQuotationView = (q: Quotation) => {
+    setSelectedQuotation(q);
+    setIsQuotationModalOpen(true);
+  };
+
+  const handleConvertQuotation = (q: Quotation) => {
+    const createdSale = convertQuotationToSale(q.id);
+    if (createdSale) {
+      onOpenReceipt(createdSale.id);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden space-y-2 sm:space-y-3">
-      {/* Header */}
-      <div className="bg-white rounded-xl p-2.5 sm:p-4 border border-slate-200 shadow-2xs flex items-center justify-between gap-2 shrink-0">
-        <div>
-          <h1 className="text-sm sm:text-lg font-bold text-slate-900 tracking-tight">
-            Sales & Invoices
-          </h1>
-          <p className="text-[11px] sm:text-xs text-slate-500">
-            {sales.length} orders recorded
-          </p>
+      {/* Header with Invoices / Quotations switch */}
+      <div className="bg-white rounded-xl p-2.5 sm:p-3.5 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Sub-tab segmented control: Invoices vs Quotations */}
+          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setViewTab('invoices');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                viewTab === 'invoices'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {language === 'pt' ? 'Faturas' : 'Invoices'} ({sales.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewTab('quotations');
+                setCurrentPage(1);
+              }}
+              className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                viewTab === 'quotations'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {language === 'pt' ? 'Orçamentos' : 'Quotations'} ({quotations.length})
+            </button>
+          </div>
         </div>
 
-        {permissions.canRecordSales && (
+        {/* Action Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={onOpenNewSale}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            onClick={() => {
+              setSelectedQuotation(null);
+              setIsQuotationModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+            title="Create a price quotation or estimate"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Sale</span>
+            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{language === 'pt' ? '+ Orçamento' : '+ Quotation'}</span>
           </button>
-        )}
+
+          {permissions.canRecordSales && (
+            <button
+              type="button"
+              onClick={onOpenNewSale}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{language === 'pt' ? 'Nova Venda' : 'New Sale'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
-        <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Invoiced
-          </span>
-          <div className="text-xs sm:text-lg font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
-            {profile.currency}{totalSalesVolume.toLocaleString()}
+      {viewTab === 'invoices' ? (
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              Invoiced
+            </span>
+            <div className="text-xs sm:text-lg font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
+              {profile.currency}{totalSalesVolume.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-slate-500 hidden sm:block">{sales.length} invoices</span>
           </div>
-          <span className="text-[10px] text-slate-500 hidden sm:block">{sales.length} invoices</span>
-        </div>
 
-        <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Collected
-          </span>
-          <div className="text-xs sm:text-lg font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
-            {profile.currency}{totalPaidVolume.toLocaleString()}
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              Collected
+            </span>
+            <div className="text-xs sm:text-lg font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
+              {profile.currency}{totalPaidVolume.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-emerald-600 hidden sm:block">Settled</span>
           </div>
-          <span className="text-[10px] text-emerald-600 hidden sm:block">Settled</span>
-        </div>
 
-        <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
-            Outstanding
-          </span>
-          <div className="text-xs sm:text-lg font-black text-rose-600 mt-0.5 sm:mt-1 truncate">
-            {profile.currency}{totalUnpaidVolume.toLocaleString()}
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              Outstanding
+            </span>
+            <div className="text-xs sm:text-lg font-black text-rose-600 mt-0.5 sm:mt-1 truncate">
+              {profile.currency}{totalUnpaidVolume.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-rose-600 hidden sm:block">Due credit</span>
           </div>
-          <span className="text-[10px] text-rose-600 hidden sm:block">Due credit</span>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              {language === 'pt' ? 'Total Orçado' : 'Quoted Volume'}
+            </span>
+            <div className="text-xs sm:text-lg font-black text-slate-900 mt-0.5 sm:mt-1 truncate">
+              {profile.currency}{totalQuotedVolume.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-slate-500 hidden sm:block">{quotations.length} proposals</span>
+          </div>
+
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              {language === 'pt' ? 'Ativos / Pendentes' : 'Open Quotes'}
+            </span>
+            <div className="text-xs sm:text-lg font-black text-indigo-600 mt-0.5 sm:mt-1 truncate">
+              {activeQuotesCount}
+            </div>
+            <span className="text-[10px] text-indigo-600 hidden sm:block">Awaiting decision</span>
+          </div>
+
+          <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 truncate block">
+              {language === 'pt' ? 'Convertidos' : 'Converted'}
+            </span>
+            <div className="text-xs sm:text-lg font-black text-emerald-600 mt-0.5 sm:mt-1 truncate">
+              {convertedQuotesCount}
+            </div>
+            <span className="text-[10px] text-emerald-600 hidden sm:block">Realized sales</span>
+          </div>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
@@ -114,7 +244,11 @@ export const SalesView: React.FC<SalesViewProps> = ({
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search invoice or customer..."
+            placeholder={
+              viewTab === 'invoices'
+                ? 'Search invoice or customer...'
+                : 'Search quote # or customer...'
+            }
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -124,194 +258,122 @@ export const SalesView: React.FC<SalesViewProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto no-scrollbar">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'paid', label: 'Paid' },
-            { id: 'partial', label: 'Partial' },
-            { id: 'unpaid', label: 'Unpaid' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setStatusFilter(tab.id as any);
-                setCurrentPage(1);
-              }}
-              className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-center ${
-                statusFilter === tab.id
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {viewTab === 'invoices' ? (
+          <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto no-scrollbar">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'paid', label: 'Paid' },
+              { id: 'partial', label: 'Partial' },
+              { id: 'unpaid', label: 'Unpaid' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setStatusFilter(tab.id as any);
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-center ${
+                  statusFilter === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto no-scrollbar">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'sent', label: 'Sent' },
+              { id: 'accepted', label: 'Accepted' },
+              { id: 'converted', label: 'Converted' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setQuoteStatusFilter(tab.id as any);
+                  setCurrentPage(1);
+                }}
+                className={`flex-1 sm:flex-initial px-2.5 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-center ${
+                  quoteStatusFilter === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Invoices List Area */}
+      {/* Main List Area */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs flex-1 min-h-0 flex flex-col overflow-hidden">
-        {/* Mobile View: Clean, Stacked Card List (No horizontal scrolling) */}
-        <div className="block sm:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 no-scrollbar">
-          {paginatedSales.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              No sales invoices found matching your filters.
-            </div>
-          ) : (
-            paginatedSales.map((sale) => (
-              <div key={sale.id} className="p-2.5 flex flex-col gap-1.5 hover:bg-slate-50/70 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-xs text-indigo-600">#{sale.invoiceNumber}</span>
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(sale.timestamp).toLocaleDateString([], {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                  <div>
-                    {sale.paymentStatus === 'paid' ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                        <CheckCircle2 className="w-2.5 h-2.5" /> Paid
-                      </span>
-                    ) : sale.paymentStatus === 'partial' ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800">
-                        <Clock className="w-2.5 h-2.5" /> Due {profile.currency}{sale.balanceDue}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800">
-                        <AlertCircle className="w-2.5 h-2.5" /> Debt
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs">
-                  <div className="truncate pr-2">
-                    <span className="font-semibold text-slate-900">{sale.customerName}</span>
-                    <span className="text-[10px] text-slate-500 ml-1.5">({sale.items.length} items)</span>
-                  </div>
-                  <span className="font-bold text-slate-900 text-sm">
-                    {profile.currency}{sale.total.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[11px]">
-                  <span className="text-slate-500 uppercase font-medium text-[9px]">
-                    {sale.paymentMethod.replace('_', ' ')}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpenReceipt(sale.id)}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
-                    >
-                      Receipt
-                    </button>
-                    {permissions.canDeleteTransactions && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm(`Delete invoice ${sale.invoiceNumber}? Stock will be restored.`)) {
-                            deleteSale(sale.id);
-                          }
-                        }}
-                        className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                        title="Delete invoice"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Desktop View: Full Data Table */}
-        <div className="hidden sm:block flex-1 min-h-0 overflow-y-auto no-scrollbar">
-          <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] z-10">
-              <tr>
-                <th className="py-2.5 px-3.5">Invoice #</th>
-                <th className="py-2.5 px-3.5">Customer</th>
-                <th className="py-2.5 px-3.5">Date</th>
-                <th className="py-2.5 px-3.5">Items</th>
-                <th className="py-2.5 px-3.5">Total</th>
-                <th className="py-2.5 px-3.5">Method</th>
-                <th className="py-2.5 px-3.5">Status</th>
-                <th className="py-2.5 px-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        {viewTab === 'invoices' ? (
+          <>
+            {/* Mobile View: Invoices */}
+            <div className="block sm:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 no-scrollbar">
               {paginatedSales.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    No sales invoices found matching your filters.
-                  </td>
-                </tr>
+                <div className="py-8 text-center text-xs text-slate-400">
+                  No sales invoices found matching your filters.
+                </div>
               ) : (
                 paginatedSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-2.5 px-3.5 font-bold text-indigo-600">
-                      #{sale.invoiceNumber}
-                    </td>
-
-                    <td className="py-2.5 px-3.5 font-medium text-slate-900">
-                      {sale.customerName}
-                    </td>
-
-                    <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">
-                      {new Date(sale.timestamp).toLocaleDateString([], {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </td>
-
-                    <td className="py-2.5 px-3.5 text-slate-600">
-                      {sale.items.length} {sale.items.length === 1 ? 'item' : 'items'}
-                    </td>
-
-                    <td className="py-2.5 px-3.5 font-bold text-slate-900">
-                      {profile.currency}{sale.total.toLocaleString()}
-                    </td>
-
-                    <td className="py-2.5 px-3.5 text-slate-600 uppercase font-semibold text-[10px]">
-                      {sale.paymentMethod.replace('_', ' ')}
-                    </td>
-
-                    <td className="py-2.5 px-3.5">
-                      {sale.paymentStatus === 'paid' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Paid
+                  <div key={sale.id} className="p-2.5 flex flex-col gap-1.5 hover:bg-slate-50/70 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-indigo-600">#{sale.invoiceNumber}</span>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(sale.timestamp).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </span>
-                      ) : sale.paymentStatus === 'partial' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                          <Clock className="w-2.5 h-2.5" /> Due {profile.currency}{sale.balanceDue}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-                          <AlertCircle className="w-2.5 h-2.5" /> Debt
-                        </span>
-                      )}
-                    </td>
+                      </div>
+                      <div>
+                        {sale.paymentStatus === 'paid' ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Paid
+                          </span>
+                        ) : sale.paymentStatus === 'partial' ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-800">
+                            <Clock className="w-2.5 h-2.5" /> Due {profile.currency}{sale.balanceDue}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800">
+                            <AlertCircle className="w-2.5 h-2.5" /> Debt
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="truncate pr-2">
+                        <span className="font-semibold text-slate-900">{sale.customerName}</span>
+                        <span className="text-[10px] text-slate-500 ml-1.5">({sale.items.length} items)</span>
+                      </div>
+                      <span className="font-bold text-slate-900 text-sm">
+                        {profile.currency}{sale.total.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[11px]">
+                      <span className="text-slate-500 uppercase font-medium text-[9px]">
+                        {sale.paymentMethod.replace('_', ' ')}
+                      </span>
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => onOpenReceipt(sale.id)}
-                          className="px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
-                          title="View receipt"
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
                         >
-                          <Eye className="w-3 h-3 inline mr-1" />
                           Receipt
                         </button>
-
-                        {permissions.canDeleteTransactions ? (
+                        {permissions.canDeleteTransactions && (
                           <button
                             type="button"
                             onClick={() => {
@@ -319,34 +381,329 @@ export const SalesView: React.FC<SalesViewProps> = ({
                                 deleteSale(sale.id);
                               }
                             }}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                            title="Delete sale"
+                            className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                            title="Delete invoice"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <span className="p-1 text-slate-300" title="Restricted for role">
-                            <Lock className="w-3 h-3" />
-                          </span>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Desktop View: Invoices */}
+            <div className="hidden sm:block flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] z-10">
+                  <tr>
+                    <th className="py-2.5 px-3.5">Invoice #</th>
+                    <th className="py-2.5 px-3.5">Customer</th>
+                    <th className="py-2.5 px-3.5">Date</th>
+                    <th className="py-2.5 px-3.5">Items</th>
+                    <th className="py-2.5 px-3.5">Total</th>
+                    <th className="py-2.5 px-3.5">Method</th>
+                    <th className="py-2.5 px-3.5">Status</th>
+                    <th className="py-2.5 px-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedSales.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        No sales invoices found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedSales.map((sale) => (
+                      <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3.5 font-bold text-indigo-600">
+                          #{sale.invoiceNumber}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-medium text-slate-900">
+                          {sale.customerName}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">
+                          {new Date(sale.timestamp).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-600">
+                          {sale.items.length} {sale.items.length === 1 ? 'item' : 'items'}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                          {profile.currency}{sale.total.toLocaleString()}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-600 uppercase font-semibold text-[10px]">
+                          {sale.paymentMethod.replace('_', ' ')}
+                        </td>
+                        <td className="py-2.5 px-3.5">
+                          {sale.paymentStatus === 'paid' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Paid
+                            </span>
+                          ) : sale.paymentStatus === 'partial' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              <Clock className="w-2.5 h-2.5" /> Due {profile.currency}{sale.balanceDue}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                              <AlertCircle className="w-2.5 h-2.5" /> Debt
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onOpenReceipt(sale.id)}
+                              className="px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
+                              title="View receipt"
+                            >
+                              <Eye className="w-3 h-3 inline mr-1" />
+                              Receipt
+                            </button>
+
+                            {permissions.canDeleteTransactions ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Delete invoice ${sale.invoiceNumber}? Stock will be restored.`)) {
+                                    deleteSale(sale.id);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                                title="Delete sale"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="p-1 text-slate-300" title="Restricted for role">
+                                <Lock className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          /* Quotations View */
+          <>
+            {/* Mobile View: Quotations Cards */}
+            <div className="block sm:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 no-scrollbar">
+              {paginatedQuotations.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  {language === 'pt' ? 'Nenhum orçamento encontrado.' : 'No quotations found matching your search.'}
+                </div>
+              ) : (
+                paginatedQuotations.map((quote) => (
+                  <div key={quote.id} className="p-2.5 flex flex-col gap-1.5 hover:bg-slate-50/70 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-indigo-700">#{quote.quotationNumber}</span>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(quote.timestamp).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold capitalize ${
+                          quote.status === 'converted'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : quote.status === 'accepted'
+                            ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {quote.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="truncate pr-2">
+                        <span className="font-semibold text-slate-900">{quote.customerName}</span>
+                        <span className="text-[10px] text-slate-400 ml-1">
+                          (Valid: {quote.validUntil})
+                        </span>
+                      </div>
+                      <span className="font-bold text-indigo-700 text-sm">
+                        {profile.currency}{quote.total.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[11px]">
+                      <span className="text-slate-400 text-[10px]">
+                        {quote.items.length} items
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenQuotationView(quote)}
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                        >
+                          View/Print
+                        </button>
+
+                        {quote.status !== 'converted' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConvertQuotation(quote)}
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer inline-flex items-center gap-0.5"
+                            title="Convert to Sale"
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                            <span>Convert</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Delete quotation ${quote.quotationNumber}?`)) {
+                              deleteQuotation(quote.id);
+                            }
+                          }}
+                          className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop View: Quotations Table */}
+            <div className="hidden sm:block flex-1 min-h-0 overflow-y-auto no-scrollbar">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px] z-10">
+                  <tr>
+                    <th className="py-2.5 px-3.5">Quote #</th>
+                    <th className="py-2.5 px-3.5">Customer</th>
+                    <th className="py-2.5 px-3.5">Issue Date</th>
+                    <th className="py-2.5 px-3.5">Valid Until</th>
+                    <th className="py-2.5 px-3.5">Items</th>
+                    <th className="py-2.5 px-3.5">Total Amount</th>
+                    <th className="py-2.5 px-3.5">Status</th>
+                    <th className="py-2.5 px-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedQuotations.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                        {language === 'pt' ? 'Nenhum orçamento encontrado.' : 'No quotations found matching your search.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedQuotations.map((quote) => (
+                      <tr key={quote.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3.5 font-bold text-indigo-700">
+                          #{quote.quotationNumber}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-medium text-slate-900">
+                          {quote.customerName}
+                          {quote.customerPhone && (
+                            <span className="text-slate-400 text-[10px] ml-1">({quote.customerPhone})</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">
+                          {new Date(quote.timestamp).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-600 whitespace-nowrap">
+                          {quote.validUntil}
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-600">
+                          {quote.items.length} {quote.items.length === 1 ? 'item' : 'items'}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                          {profile.currency}{quote.total.toLocaleString()}
+                        </td>
+                        <td className="py-2.5 px-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                              quote.status === 'converted'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : quote.status === 'accepted'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {quote.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenQuotationView(quote)}
+                              className="px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded transition-colors cursor-pointer"
+                              title="View & Print Quotation"
+                            >
+                              <Eye className="w-3 h-3 inline mr-1" />
+                              View
+                            </button>
+
+                            {quote.status !== 'converted' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleConvertQuotation(quote)}
+                                className="px-2 py-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded transition-colors cursor-pointer"
+                                title="Convert directly to Sale & Invoice"
+                              >
+                                <ArrowRight className="w-3 h-3 inline mr-0.5" />
+                                Convert
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-emerald-700">Converted</span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (confirm(`Delete quotation ${quote.quotationNumber}?`)) {
+                                  deleteQuotation(quote.id);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                              title="Delete quotation"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         {/* Compact Pagination Bar */}
         <div className="p-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <span className="text-[11px]">
-            {filteredSales.length === 0
-              ? '0 orders'
+            {activeItems.length === 0
+              ? '0 records'
               : `${(validPage - 1) * pageSize + 1}-${Math.min(
                   validPage * pageSize,
-                  filteredSales.length
-                )} of ${filteredSales.length}`}
+                  activeItems.length
+                )} of ${activeItems.length}`}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -373,6 +730,17 @@ export const SalesView: React.FC<SalesViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Quotation Modal */}
+      <QuotationModal
+        isOpen={isQuotationModalOpen}
+        onClose={() => {
+          setIsQuotationModalOpen(false);
+          setSelectedQuotation(null);
+        }}
+        quotationToView={selectedQuotation}
+        onQuotationConverted={(sale) => onOpenReceipt(sale.id)}
+      />
     </div>
   );
 };

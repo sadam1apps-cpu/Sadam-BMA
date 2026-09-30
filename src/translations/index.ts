@@ -297,6 +297,18 @@ export interface TranslationDictionary {
   netProfit: string;
   salesVolume: string;
   profitMargin: string;
+
+  // Quotations & Purchase Orders
+  quotations: string;
+  quotation: string;
+  newQuotation: string;
+  purchaseOrders: string;
+  purchaseOrder: string;
+  newPO: string;
+  createPO: string;
+  convertToSale: string;
+  receiveGoods: string;
+  saveAsQuotation: string;
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -595,6 +607,18 @@ export const translations: Record<Language, TranslationDictionary> = {
     netProfit: 'Net Operating Profit',
     salesVolume: 'Total Transactions',
     profitMargin: 'Net Profit Margin',
+
+    // Quotations & Purchase Orders
+    quotations: 'Quotations',
+    quotation: 'Quotation',
+    newQuotation: 'New Quotation',
+    purchaseOrders: 'Purchase Orders',
+    purchaseOrder: 'Purchase Order',
+    newPO: 'New PO',
+    createPO: 'Create Purchase Order',
+    convertToSale: 'Convert to Sale',
+    receiveGoods: 'Receive Stock',
+    saveAsQuotation: 'Save as Quotation',
   },
 
   pt: {
@@ -892,6 +916,18 @@ export const translations: Record<Language, TranslationDictionary> = {
     netProfit: 'Resultado Líquido do Exercício',
     salesVolume: 'Total de Transações',
     profitMargin: 'Margem Líquida',
+
+    // Quotations & Purchase Orders
+    quotations: 'Orçamentos',
+    quotation: 'Orçamento',
+    newQuotation: 'Novo Orçamento',
+    purchaseOrders: 'Ordens de Compra',
+    purchaseOrder: 'Ordem de Compra',
+    newPO: 'Nova OC',
+    createPO: 'Criar Ordem de Compra',
+    convertToSale: 'Converter em Venda',
+    receiveGoods: 'Dar Entrada de Stock',
+    saveAsQuotation: 'Guardar como Orçamento',
   },
 };
 

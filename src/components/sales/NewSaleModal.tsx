@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
+  FileText,
 } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 
@@ -42,6 +43,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     products,
     customers,
     addSale,
+    addQuotation,
     addCustomer,
     currentRole,
     permissions,
@@ -328,6 +330,53 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     setProductSearchTerm('');
     setErrorMsg('');
     onClose();
+  };
+
+  const handleSaveAsQuotation = () => {
+    if (selectedItems.length === 0) return;
+
+    let finalCustomerName = 'Walk-in Customer';
+    let finalCustomerId = '';
+    let customerPhone: string | undefined = undefined;
+
+    if (customerId === 'new') {
+      finalCustomerName = customCustomerName.trim() || 'Walk-in Customer';
+      customerPhone = customCustomerPhone.trim() || undefined;
+    } else if (customerId !== 'walk-in') {
+      const existing = customers.find((c) => c.id === customerId);
+      if (existing) {
+        finalCustomerId = existing.id;
+        finalCustomerName = existing.name;
+        customerPhone = existing.phone;
+      }
+    }
+
+    const validUntilDate = new Date();
+    validUntilDate.setDate(validUntilDate.getDate() + 15);
+    const validUntil = validUntilDate.toISOString().slice(0, 10);
+
+    addQuotation({
+      customerId: finalCustomerId,
+      customerName: finalCustomerName,
+      customerPhone,
+      items: invoiceItems.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+      })),
+      subtotal,
+      discountAmount,
+      taxAmount,
+      total: grandTotal,
+      status: 'sent',
+      validUntil,
+      cashierName: 'Staff',
+      notes: notes.trim() || undefined,
+    });
+
+    handleClose();
   };
 
   return (
@@ -1016,6 +1065,17 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 {t.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAsQuotation}
+                disabled={selectedItems.length === 0}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                title="Save items as a price quotation without recording sale"
+              >
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <span className="hidden sm:inline">{language === 'pt' ? 'Guardar Orçamento' : 'Save as Quote'}</span>
+                <span className="sm:hidden">{language === 'pt' ? 'Orçamento' : 'Quote'}</span>
               </button>
               <button
                 type="submit"

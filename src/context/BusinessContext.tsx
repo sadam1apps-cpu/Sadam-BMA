@@ -7,6 +7,8 @@ import {
   Expense,
   NotificationAlert,
   Product,
+  Quotation,
+  PurchaseOrder,
   RolePermissions,
   Sale,
   StockMovement,
@@ -85,6 +87,8 @@ interface BusinessContextType {
 
   // Data
   sales: Sale[];
+  quotations: Quotation[];
+  purchaseOrders: PurchaseOrder[];
   products: Product[];
   customers: Customer[];
   suppliers: Supplier[];
@@ -97,6 +101,14 @@ interface BusinessContextType {
   // Actions
   addSale: (saleData: Omit<Sale, 'id' | 'invoiceNumber' | 'timestamp'>) => Sale;
   deleteSale: (saleId: string) => boolean;
+  addQuotation: (quotationData: Omit<Quotation, 'id' | 'quotationNumber' | 'timestamp'>) => Quotation;
+  updateQuotation: (id: string, updates: Partial<Quotation>) => void;
+  deleteQuotation: (id: string) => boolean;
+  convertQuotationToSale: (quotationId: string) => Sale | null;
+  addPurchaseOrder: (poData: Omit<PurchaseOrder, 'id' | 'poNumber' | 'timestamp'>) => PurchaseOrder;
+  updatePurchaseOrder: (id: string, updates: Partial<PurchaseOrder>) => void;
+  deletePurchaseOrder: (id: string) => boolean;
+  receivePurchaseOrder: (poId: string) => boolean;
   addProduct: (productData: Omit<Product, 'id' | 'updatedAt'>) => Product;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   restockProduct: (productId: string, quantity: number, unitCost?: number, supplierId?: string) => void;
@@ -204,6 +216,28 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}sales`);
+    if (saved && !isDemoString(saved)) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [quotations, setQuotations] = useState<Quotation[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}quotations`);
+    if (saved && !isDemoString(saved)) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}purchaseOrders`);
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
@@ -702,6 +736,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [sales]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}quotations`, JSON.stringify(quotations));
+  }, [quotations]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}purchaseOrders`, JSON.stringify(purchaseOrders));
+  }, [purchaseOrders]);
+
+  useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}products`, JSON.stringify(products));
   }, [products]);
 
@@ -952,6 +994,110 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     setSales((prev) => prev.filter((s) => s.id !== saleId));
+    return true;
+  };
+
+  // QUOTATION ACTIONS
+  const addQuotation = (
+    quotationData: Omit<Quotation, 'id' | 'quotationNumber' | 'timestamp'>
+  ): Quotation => {
+    const nextNum = quotations.length + 1001;
+    const newQuotation: Quotation = {
+      ...quotationData,
+      id: `quote-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      quotationNumber: `QT-${nextNum}`,
+      timestamp: new Date().toISOString(),
+    };
+    setQuotations((prev) => [newQuotation, ...prev]);
+    return newQuotation;
+  };
+
+  const updateQuotation = (id: string, updates: Partial<Quotation>) => {
+    setQuotations((prev) =>
+      prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
+    );
+  };
+
+  const deleteQuotation = (id: string): boolean => {
+    setQuotations((prev) => prev.filter((q) => q.id !== id));
+    return true;
+  };
+
+  const convertQuotationToSale = (quotationId: string): Sale | null => {
+    const quote = quotations.find((q) => q.id === quotationId);
+    if (!quote) return null;
+
+    const invoiceItems = quote.items.map((item) => {
+      const prod = products.find((p) => p.id === item.productId);
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitCost: prod?.costPrice || 0,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+      };
+    });
+
+    const newSale = addSale({
+      customerId: quote.customerId || '',
+      customerName: quote.customerName || 'Walk-in Customer',
+      customerPhone: quote.customerPhone,
+      items: invoiceItems,
+      subtotal: quote.subtotal,
+      discountAmount: quote.discountAmount,
+      taxAmount: quote.taxAmount,
+      total: quote.total,
+      amountPaid: quote.total,
+      balanceDue: 0,
+      paymentMethod: 'cash',
+      paymentStatus: 'paid',
+      cashierName: currentUser?.name || quote.cashierName || 'Cashier',
+      notes: `Converted from Quotation ${quote.quotationNumber}. ${quote.notes || ''}`.trim(),
+    });
+
+    updateQuotation(quotationId, { status: 'converted' });
+    return newSale;
+  };
+
+  // PURCHASE ORDER ACTIONS
+  const addPurchaseOrder = (
+    poData: Omit<PurchaseOrder, 'id' | 'poNumber' | 'timestamp'>
+  ): PurchaseOrder => {
+    const nextNum = purchaseOrders.length + 1001;
+    const newPO: PurchaseOrder = {
+      ...poData,
+      id: `po-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      poNumber: `PO-${nextNum}`,
+      timestamp: new Date().toISOString(),
+    };
+    setPurchaseOrders((prev) => [newPO, ...prev]);
+    return newPO;
+  };
+
+  const updatePurchaseOrder = (id: string, updates: Partial<PurchaseOrder>) => {
+    setPurchaseOrders((prev) =>
+      prev.map((po) => (po.id === id ? { ...po, ...updates } : po))
+    );
+  };
+
+  const deletePurchaseOrder = (id: string): boolean => {
+    setPurchaseOrders((prev) => prev.filter((po) => po.id !== id));
+    return true;
+  };
+
+  const receivePurchaseOrder = (poId: string): boolean => {
+    const po = purchaseOrders.find((p) => p.id === poId);
+    if (!po) return false;
+
+    po.items.forEach((item) => {
+      restockProduct(item.productId, item.quantity, item.unitCost, po.supplierId);
+    });
+
+    updatePurchaseOrder(poId, {
+      status: 'received',
+      receivedAt: new Date().toISOString(),
+    });
     return true;
   };
 
@@ -1655,6 +1801,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lockScreen,
         unlockScreen,
         sales,
+        quotations,
+        purchaseOrders,
         products,
         customers,
         suppliers,
@@ -1665,6 +1813,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         alerts,
         addSale,
         deleteSale,
+        addQuotation,
+        updateQuotation,
+        deleteQuotation,
+        convertQuotationToSale,
+        addPurchaseOrder,
+        updatePurchaseOrder,
+        deletePurchaseOrder,
+        receivePurchaseOrder,
         addProduct,
         updateProduct,
         restockProduct,
