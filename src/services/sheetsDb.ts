@@ -10,6 +10,8 @@ import {
   Employee,
   Expense,
   Product,
+  Quotation,
+  PurchaseOrder,
   Sale,
   StockMovement,
   Supplier,
@@ -198,6 +200,52 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'invoiceFooter', type: 'string', description: 'Printed bottom receipt message', sample: 'Thank you for shopping with us! Returns accepted within 14 days.', required: true },
     ],
   },
+  {
+    sheetName: 'Quotations',
+    title: 'Commercial Quotations & Estimates',
+    description: 'Price proposals, customer estimates, item pricing, validity periods, and conversion status.',
+    columns: [
+      { name: 'id', type: 'string', description: 'Unique quotation ID', sample: 'quote_1', required: true },
+      { name: 'quotationNumber', type: 'string', description: 'Quotation reference identifier', sample: 'QT-1001', required: true },
+      { name: 'customerId', type: 'string', description: 'Linked customer ID or empty', sample: 'cust_1', required: false },
+      { name: 'customerName', type: 'string', description: 'Customer or prospect name', sample: 'Grand Metro Cafe', required: true },
+      { name: 'customerPhone', type: 'string', description: 'Customer contact phone', sample: '+1 555-8821', required: false },
+      { name: 'customerEmail', type: 'string', description: 'Customer email address', sample: 'procurement@metrocafe.com', required: false },
+      { name: 'items', type: 'json', description: 'JSON array of quoted line items', sample: '[{"productId":"prod_1","productName":"Coffee","quantity":10,"unitPrice":14.99,"subtotal":149.90}]', required: true },
+      { name: 'subtotal', type: 'number', description: 'Total before discount and tax', sample: '149.90', required: true },
+      { name: 'discountAmount', type: 'number', description: 'Commercial discount deducted', sample: '0.00', required: true },
+      { name: 'taxAmount', type: 'number', description: 'Applicable sales tax', sample: '7.50', required: true },
+      { name: 'total', type: 'number', description: 'Grand total quoted', sample: '157.40', required: true },
+      { name: 'status', type: 'string', description: 'draft | sent | accepted | declined | converted', sample: 'sent', required: true },
+      { name: 'validUntil', type: 'date', description: 'Quotation expiration date', sample: '2026-10-15', required: true },
+      { name: 'timestamp', type: 'date', description: 'Issue date and time (ISO)', sample: '2026-09-30T10:00:00.000Z', required: true },
+      { name: 'cashierName', type: 'string', description: 'Staff who prepared the quotation', sample: 'Alex Mercer', required: true },
+      { name: 'notes', type: 'string', description: 'Commercial warranty / terms memo', sample: 'Pricing guaranteed for 15 days', required: false },
+    ],
+  },
+  {
+    sheetName: 'PurchaseOrders',
+    title: 'Purchase Orders & Supplier Procurement',
+    description: 'Vendor orders, ordered goods, agreed unit costs, expected delivery dates, receiving audit, and status.',
+    columns: [
+      { name: 'id', type: 'string', description: 'Unique purchase order ID', sample: 'po_1', required: true },
+      { name: 'poNumber', type: 'string', description: 'Purchase order reference identifier', sample: 'PO-1001', required: true },
+      { name: 'supplierId', type: 'string', description: 'Linked supplier ID', sample: 'supp_1', required: true },
+      { name: 'supplierName', type: 'string', description: 'Vendor / supplier company name', sample: 'Pacific Bean Importers Ltd', required: true },
+      { name: 'supplierContact', type: 'string', description: 'Vendor representative contact', sample: 'David Lin', required: false },
+      { name: 'supplierPhone', type: 'string', description: 'Vendor phone number', sample: '+1 555-4432', required: false },
+      { name: 'items', type: 'json', description: 'JSON array of ordered items and unit costs', sample: '[{"productId":"prod_1","productName":"Coffee","quantity":50,"unitCost":8.5,"subtotal":425.0}]', required: true },
+      { name: 'subtotal', type: 'number', description: 'Total purchase order cost before tax', sample: '425.00', required: true },
+      { name: 'taxAmount', type: 'number', description: 'Import / supplier duty or tax', sample: '0.00', required: true },
+      { name: 'total', type: 'number', description: 'Total purchase order value', sample: '425.00', required: true },
+      { name: 'status', type: 'string', description: 'draft | issued | received | cancelled', sample: 'issued', required: true },
+      { name: 'expectedDeliveryDate', type: 'date', description: 'Agreed expected arrival date', sample: '2026-10-07', required: false },
+      { name: 'timestamp', type: 'date', description: 'PO issuance timestamp (ISO)', sample: '2026-09-30T10:00:00.000Z', required: true },
+      { name: 'receivedAt', type: 'date', description: 'Stock receiving timestamp (ISO)', sample: '2026-10-06T14:00:00.000Z', required: false },
+      { name: 'createdBy', type: 'string', description: 'Staff / Manager who issued PO', sample: 'Alex Mercer', required: true },
+      { name: 'notes', type: 'string', description: 'Receiving dock notes / delivery instructions', sample: 'Backdoor receiving dock', required: false },
+    ],
+  },
 ];
 
 /**
@@ -241,7 +289,9 @@ var SCHEMAS = {
   'Accounts': ['id', 'name', 'type', 'bankName', 'accountHolder', 'accountNumber', 'ibanOrNib', 'swiftCode', 'branchName', 'balance', 'currency', 'notes'],
   'StockMovements': ['id', 'productId', 'productName', 'type', 'quantity', 'previousStock', 'newStock', 'reason', 'timestamp', 'performedBy'],
   'Employees': ['id', 'name', 'role', 'phone', 'email', 'monthlySalary', 'commissionRate', 'attendanceStatus', 'lastClockIn', 'joinedDate', 'pin', 'password', 'status', 'customPermissions', 'lastLogin'],
-  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter']
+  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language'],
+  'Quotations': ['id', 'quotationNumber', 'customerId', 'customerName', 'customerPhone', 'customerEmail', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'status', 'validUntil', 'timestamp', 'cashierName', 'notes'],
+  'PurchaseOrders': ['id', 'poNumber', 'supplierId', 'supplierName', 'supplierContact', 'supplierPhone', 'items', 'subtotal', 'taxAmount', 'total', 'status', 'expectedDeliveryDate', 'timestamp', 'receivedAt', 'createdBy', 'notes']
 };
 
 /**
@@ -331,7 +381,9 @@ function doPost(e) {
         'Accounts': d.accounts || [],
         'StockMovements': d.stockMovements || [],
         'Employees': d.employees || [],
-        'BusinessProfile': d.profile ? [d.profile] : []
+        'BusinessProfile': d.profile ? [d.profile] : [],
+        'Quotations': d.quotations || [],
+        'PurchaseOrders': d.purchaseOrders || []
       };
 
       for (var sheetName in collections) {
@@ -713,7 +765,7 @@ export async function testSheetsConnection(scriptUrl: string): Promise<{
         success: true,
         message: 'Connected directly to Google Spreadsheet. Ready to display data.',
         spreadsheetTitle: 'Live Google Spreadsheet',
-        sheets: ['Products', 'Sales', 'Customers', 'Suppliers', 'Expenses', 'Employees', 'Accounts', 'StockMovements', 'BusinessProfile'],
+        sheets: ['Products', 'Sales', 'Customers', 'Suppliers', 'Expenses', 'Employees', 'Accounts', 'StockMovements', 'BusinessProfile', 'Quotations', 'PurchaseOrders'],
       };
     } catch (e: any) {
       return {
@@ -858,6 +910,8 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
     stockMovements?: StockMovement[];
     employees?: Employee[];
     profile?: BusinessProfile;
+    quotations?: Quotation[];
+    purchaseOrders?: PurchaseOrder[];
   };
   message?: string;
 }> {
@@ -882,6 +936,8 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
         stockMovements,
         employees,
         profileRows,
+        quotations,
+        purchaseOrders,
       ] = await Promise.all([
         fetchSheetViaGviz(spreadsheetId, 'Products'),
         fetchSheetViaGviz(spreadsheetId, 'Sales'),
@@ -892,6 +948,8 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
         fetchSheetViaGviz(spreadsheetId, 'StockMovements'),
         fetchSheetViaGviz(spreadsheetId, 'Employees'),
         fetchSheetViaGviz(spreadsheetId, 'BusinessProfile'),
+        fetchSheetViaGviz(spreadsheetId, 'Quotations').catch(() => []),
+        fetchSheetViaGviz(spreadsheetId, 'PurchaseOrders').catch(() => []),
       ]);
 
       const profileObj = profileRows && profileRows.length > 0 ? (profileRows[0] as BusinessProfile) : undefined;
@@ -908,6 +966,8 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
           stockMovements: stockMovements as StockMovement[],
           employees: employees as Employee[],
           profile: profileObj,
+          quotations: (quotations || []) as Quotation[],
+          purchaseOrders: (purchaseOrders || []) as PurchaseOrder[],
         },
       };
     } catch (err: any) {
@@ -964,6 +1024,8 @@ export async function pushAllToSheets(
     stockMovements: StockMovement[];
     employees: Employee[];
     profile: BusinessProfile;
+    quotations?: Quotation[];
+    purchaseOrders?: PurchaseOrder[];
   }
 ): Promise<{ success: boolean; message: string }> {
   if (!scriptUrl || !scriptUrl.trim()) {

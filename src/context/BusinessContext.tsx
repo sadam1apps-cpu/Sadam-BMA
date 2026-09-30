@@ -525,6 +525,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (d.expenses && Array.isArray(d.expenses)) setExpenses(d.expenses);
         if (d.accounts && Array.isArray(d.accounts)) setAccounts(d.accounts);
         if (d.stockMovements && Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements);
+        if (d.quotations && Array.isArray(d.quotations)) setQuotations(d.quotations);
+        if (d.purchaseOrders && Array.isArray(d.purchaseOrders)) setPurchaseOrders(d.purchaseOrders);
         if (d.employees && Array.isArray(d.employees)) {
           const normalizedEmployees: Employee[] = d.employees.map((emp) => ({
             ...emp,
@@ -612,6 +614,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         stockMovements,
         employees,
         profile,
+        quotations,
+        purchaseOrders,
       });
       if (res.success) {
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -671,7 +675,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return;
     }
     markPendingChange();
-  }, [products, sales, customers, suppliers, expenses, employees, accounts, stockMovements, profile]);
+  }, [products, sales, customers, suppliers, expenses, employees, accounts, stockMovements, profile, quotations, purchaseOrders]);
 
   // Periodic interval sync when scheduled mode is chosen (syncs at most every 15 min if there are changes)
   useEffect(() => {
