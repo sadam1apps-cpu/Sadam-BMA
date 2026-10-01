@@ -156,6 +156,9 @@ interface BusinessContextType {
 
 const STORAGE_PREFIX = 'biz_mgr_sheets_db_';
 
+export const DEFAULT_SHEETS_URL =
+  'https://script.google.com/macros/s/AKfycbyDzfC-9Se5Xf4CA0on6NHDoJ3PSAJBNMdpEeGSkiCsEa5GSIWJANOLOse6dkQptNSa/exec';
+
 // Check if a stored string contains legacy hardcoded demo markers from previous versions
 const isDemoString = (str: string | null) => {
   if (!str) return false;
@@ -375,37 +378,28 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [activeNavTab, setActiveNavTab] = useState<string>('dashboard');
 
-  // Google Sheets Database State - constant from .env takes priority
+  // Google Sheets Database State - constant from .env or DEFAULT_SHEETS_URL
   const envSheetsUrl = (
+    (import.meta.env.VITE_SHEETS_SCRIPT_URL as string) ||
     (import.meta.env.VITE_GOOGLE_SHEETS_URL as string) ||
     (import.meta.env.VITE_SHEETS_DATABASE_URL as string) ||
-    ''
+    DEFAULT_SHEETS_URL
   ).trim();
 
   const [sheetsUrl, setSheetsUrlState] = useState<string>(() => {
-    return (
-      envSheetsUrl ||
-      localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`) ||
-      localStorage.getItem('biz_mgr_data_v1_sheetsUrl') ||
-      localStorage.getItem('biz_mgr_v1_sheetsUrl') ||
-      ''
-    );
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`);
+    if (saved && saved.trim() && saved === DEFAULT_SHEETS_URL) {
+      return saved.trim();
+    }
+    return envSheetsUrl || DEFAULT_SHEETS_URL;
   });
   const [sheetsSyncStatus, setSheetsSyncStatus] = useState<SheetsSyncStatus>(() => {
-    const savedUrl =
-      envSheetsUrl ||
-      localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`) ||
-      localStorage.getItem('biz_mgr_data_v1_sheetsUrl') ||
-      localStorage.getItem('biz_mgr_v1_sheetsUrl');
-    return savedUrl ? 'syncing' : 'disconnected';
+    const activeUrl = envSheetsUrl || DEFAULT_SHEETS_URL;
+    return activeUrl ? 'syncing' : 'disconnected';
   });
   const [isInitialSyncLoading, setIsInitialSyncLoading] = useState<boolean>(() => {
-    const savedUrl =
-      envSheetsUrl ||
-      localStorage.getItem(`${STORAGE_PREFIX}sheetsUrl`) ||
-      localStorage.getItem('biz_mgr_data_v1_sheetsUrl') ||
-      localStorage.getItem('biz_mgr_v1_sheetsUrl');
-    return Boolean(savedUrl && savedUrl.trim());
+    const activeUrl = envSheetsUrl || DEFAULT_SHEETS_URL;
+    return Boolean(activeUrl && activeUrl.trim());
   });
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     return (
@@ -864,7 +858,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           newStock,
           reason: `Sale ${invoiceNumber} to ${saleData.customerName}`,
           timestamp,
-          performedBy: saleData.cashierName || 'Staff',
+          performedBy:
+            saleData.cashierName ||
+            currentUser?.name ||
+            profile.ownerName ||
+            profile.businessName ||
+            profile.name ||
+            '',
         });
         return { ...prod, stock: newStock, updatedAt: timestamp };
       }
@@ -1045,7 +1045,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const newSale = addSale({
       customerId: quote.customerId || '',
-      customerName: quote.customerName || 'Walk-in Customer',
+      customerName: quote.customerName || '',
       customerPhone: quote.customerPhone,
       items: invoiceItems,
       subtotal: quote.subtotal,
@@ -1056,7 +1056,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       balanceDue: 0,
       paymentMethod: 'cash',
       paymentStatus: 'paid',
-      cashierName: currentUser?.name || quote.cashierName || 'Cashier',
+      cashierName:
+        currentUser?.name ||
+        quote.cashierName ||
+        profile.ownerName ||
+        profile.businessName ||
+        profile.name ||
+        '',
       notes: `Converted from Quotation ${quote.quotationNumber}. ${quote.notes || ''}`.trim(),
     });
 

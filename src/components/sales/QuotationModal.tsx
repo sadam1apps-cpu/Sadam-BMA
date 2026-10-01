@@ -42,6 +42,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     profile,
     products,
     customers,
+    currentUser,
     addQuotation,
     convertQuotationToSale,
     currentRole,
@@ -211,7 +212,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       return;
     }
 
-    let finalCustomerName = 'Walk-in Customer';
+    let finalCustomerName = language === 'pt' ? 'Cliente Balcão' : 'Walk-in Customer';
     let finalCustomerId = '';
     let customerPhone: string | undefined = undefined;
 
@@ -239,12 +240,19 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       const prod = products.find((p) => p.id === item.productId);
       return {
         productId: item.productId,
-        productName: prod?.name || 'Product',
+        productName: prod?.name || (language === 'pt' ? 'Artigo' : 'Item'),
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: item.quantity * item.unitPrice,
       };
     });
+
+    const finalCashierName =
+      currentUser?.name ||
+      profile.ownerName ||
+      profile.businessName ||
+      profile.name ||
+      '';
 
     addQuotation({
       customerId: finalCustomerId,
@@ -257,7 +265,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       total: grandTotal,
       status: 'sent',
       validUntil,
-      cashierName: currentRole === 'owner' ? 'Alex Mercer (Owner)' : 'Staff Member',
+      cashierName: finalCashierName,
       notes: notes.trim() || undefined,
     });
 
@@ -296,21 +304,24 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       // Business Logo
       if (profile.logo) {
         try {
-          const logoW = 20;
-          const logoH = 20;
+          const logoW = 22;
+          const logoH = 22;
           doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
-          y += logoH + 3;
+          // Generous margin so logo never touches business info
+          y += logoH + 13;
         } catch (e) {
           console.warn('PDF logo render error:', e);
         }
       }
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.setTextColor(15, 23, 42);
-      const storeName = (profile.name || profile.businessName || 'Business Store').toUpperCase();
-      doc.text(storeName, pageWidth / 2, y, { align: 'center' });
-      y += 6;
+      const storeName = (profile.businessName || profile.name || '').toUpperCase();
+      if (storeName) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(15, 23, 42);
+        doc.text(storeName, pageWidth / 2, y, { align: 'center' });
+        y += 7;
+      }
 
       if (profile.address) {
         doc.setFont('helvetica', 'normal');
@@ -467,84 +478,122 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-sm overflow-hidden select-none">
-      <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[94vh] max-h-[850px] flex flex-col overflow-hidden z-10 animate-fadeIn">
-        
-        {/* Fixed Header */}
-        <div className="flex items-center justify-between px-3.5 sm:px-6 py-2.5 sm:py-3.5 bg-slate-900 text-white shrink-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xs shrink-0">
-              <FileText className="w-4 h-4 text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xs sm:text-base font-bold text-white truncate">
-                  {isViewMode
-                    ? `${language === 'pt' ? 'Orçamento' : 'Quotation'} ${quotationToView?.quotationNumber}`
-                    : language === 'pt'
-                    ? 'Novo Orçamento Comercial'
-                    : 'New Quotation / Estimate'}
-                </h2>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {isViewMode ? 'Preview & Print' : 'Estimate Draft'}
-                </span>
+    <>
+      {/* Dedicated Print Stylesheet for flawless isolation and paper printing */}
+      <style>{`
+        @media print {
+          body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-quotation-modal,
+          #printable-quotation-modal * {
+            visibility: visible !important;
+          }
+          #printable-quotation-modal {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div
+        id="printable-quotation-modal"
+        className="fixed inset-0 z-50 flex items-center justify-center p-1 sm:p-3 md:p-6 bg-slate-950/80 backdrop-blur-sm overflow-hidden select-none print:p-0 print:bg-white"
+      >
+        <div className="relative bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[94vh] max-h-[850px] flex flex-col overflow-hidden z-10 animate-fadeIn print:shadow-none print:border-none print:w-full print:max-w-none print:h-auto print:max-h-none">
+          
+          {/* Fixed Header */}
+          <div className="flex items-center justify-between px-3.5 sm:px-6 py-2.5 sm:py-3.5 bg-slate-900 text-white shrink-0 no-print">
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-xs shrink-0">
+                <FileText className="w-4 h-4 text-white" />
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isViewMode && (
-              <div className="text-right hidden sm:block">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Live Total</span>
-                <span className="text-sm font-black text-indigo-400">
-                  {profile.currency}{grandTotal.toLocaleString()}
-                </span>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-              aria-label="Close modal"
-            >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Global Error Banner */}
-        {errorMsg && (
-          <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 text-xs text-rose-700 font-semibold flex items-center gap-2 shrink-0 animate-fadeIn">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span className="truncate">{errorMsg}</span>
-          </div>
-        )}
-
-        {/* VIEW MODE: High-density preview */}
-        {isViewMode && quotationToView ? (
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3.5 text-xs sm:text-sm print:p-0 no-scrollbar">
-              {/* Store & Quote Meta Card */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                <div className="flex items-center gap-3">
-                  {profile.logo && (
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
-                      <img
-                        src={profile.logo}
-                        alt={profile.name || 'Store Logo'}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-slate-900">
-                      {profile.name || 'Store'}
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      {profile.address || ''} {profile.phone ? `• ${profile.phone}` : ''}
-                    </p>
-                  </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs sm:text-base font-bold text-white truncate">
+                    {isViewMode
+                      ? `${language === 'pt' ? 'Orçamento' : 'Quotation'} ${quotationToView?.quotationNumber}`
+                      : language === 'pt'
+                      ? 'Novo Orçamento Comercial'
+                      : 'New Quotation / Estimate'}
+                  </h2>
+                  <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {isViewMode ? 'Preview & Print' : 'Estimate Draft'}
+                  </span>
                 </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isViewMode && (
+                <div className="text-right hidden sm:block">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block leading-tight">Live Total</span>
+                  <span className="text-sm font-black text-indigo-400">
+                    {profile.currency}{grandTotal.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleClose}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Global Error Banner */}
+          {errorMsg && (
+            <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 text-xs text-rose-700 font-semibold flex items-center gap-2 shrink-0 animate-fadeIn no-print">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span className="truncate">{errorMsg}</span>
+            </div>
+          )}
+
+          {/* VIEW MODE: High-density preview */}
+          {isViewMode && quotationToView ? (
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3.5 text-xs sm:text-sm print:p-0 no-scrollbar">
+                {/* Store & Quote Meta Card */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+                    {profile.logo && (
+                      <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-xl bg-white border border-slate-200 p-1.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden mr-1">
+                        <img
+                          src={profile.logo}
+                          alt={profile.businessName || profile.name || ''}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
+                        {profile.businessName || profile.name || ''}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {profile.address || ''} {profile.phone ? `• ${profile.phone}` : ''}
+                      </p>
+                    </div>
+                  </div>
                 <div className="text-left sm:text-right">
                   <div className="flex items-center sm:justify-end gap-1.5">
                     <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg text-xs font-mono">
@@ -586,7 +635,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 </div>
                 <div className="text-right text-[11px] text-slate-500">
                   {language === 'pt' ? 'Preparado por' : 'Prepared by'}:{' '}
-                  <span className="font-bold text-slate-700">{quotationToView.cashierName}</span>
+                  <span className="font-bold text-slate-700">
+                    {quotationToView.cashierName || currentUser?.name || profile.ownerName || profile.businessName || profile.name || ''}
+                  </span>
                 </div>
               </div>
 
@@ -782,7 +833,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       <div className="mt-1.5 grid grid-cols-2 gap-1 animate-fadeIn">
                         <input
                           type="text"
-                          placeholder="Client Name *"
+                          placeholder={language === 'pt' ? 'Nome do Cliente *' : 'Client Name *'}
                           value={customCustomerName}
                           onChange={(e) => setCustomCustomerName(e.target.value)}
                           className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1"
@@ -1085,7 +1136,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             {/* Product Info */}
                             <div className="min-w-0 flex-1">
                               <span className="text-xs font-bold text-slate-900 truncate block">
-                                {prod?.name || 'Product'}
+                                {prod?.name || (language === 'pt' ? 'Artigo' : 'Item')}
                               </span>
                               <div className="text-[10px] text-slate-500 font-mono truncate">
                                 SKU: {prod?.sku} • Stock: {prod?.stock || 0} {prod?.unit || ''}
@@ -1341,5 +1392,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         }))}
       />
     </div>
+    </>
   );
 };

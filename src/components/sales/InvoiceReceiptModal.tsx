@@ -10,7 +10,7 @@ interface InvoiceReceiptModalProps {
 }
 
 export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, onClose }) => {
-  const { profile, language, t } = useBusiness();
+  const { profile, currentUser, language, t } = useBusiness();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [notice, setNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -76,22 +76,25 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       // 0. Business Logo (if configured)
       if (profile.logo) {
         try {
-          const logoW = 20;
-          const logoH = 20;
+          const logoW = 22;
+          const logoH = 22;
           doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
-          y += logoH + 3;
+          // Generous vertical margin so logo never touches the business name or details
+          y += logoH + 13;
         } catch (e) {
           console.warn('PDF logo render warning:', e);
         }
       }
 
       // 1. Store Business Name & Details
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.setTextColor(15, 23, 42); // slate-900
-      const storeName = (profile.name || profile.businessName || 'Business Store').toUpperCase();
-      doc.text(storeName, pageWidth / 2, y, { align: 'center' });
-      y += 6;
+      const storeName = (profile.businessName || profile.name || '').toUpperCase();
+      if (storeName) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.setTextColor(15, 23, 42); // slate-900
+        doc.text(storeName, pageWidth / 2, y, { align: 'center' });
+        y += 7;
+      }
 
       if (profile.tagline) {
         doc.setFont('helvetica', 'normal');
@@ -166,7 +169,10 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
         ? `${sale.customerName} (${sale.customerPhone})`
         : sale.customerName;
       doc.text(custText, colLeft + 22, metaY2);
-      doc.text(sale.cashierName || 'Staff', colRight + 22, metaY2);
+      const cashierText = sale.cashierName || currentUser?.name || profile.ownerName || '';
+      if (cashierText) {
+        doc.text(cashierText, colRight + 22, metaY2);
+      }
 
       y += 31;
 
@@ -489,19 +495,23 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
             {/* Store Information */}
             <div className="text-center border-b border-slate-200 pb-4">
               {profile.logo && (
-                <div className="flex justify-center mb-3">
-                  <img
-                    src={profile.logo}
-                    alt={profile.name || 'Store Logo'}
-                    className="max-h-16 max-w-[180px] object-contain"
-                  />
+                <div className="flex justify-center mb-5 sm:mb-6">
+                  <div className="p-1 rounded-xl bg-white border border-slate-200/80 shadow-2xs inline-flex items-center justify-center">
+                    <img
+                      src={profile.logo}
+                      alt={profile.businessName || profile.name || ''}
+                      className="max-h-16 max-w-[180px] object-contain"
+                    />
+                  </div>
                 </div>
               )}
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">
-                {profile.name || profile.businessName || 'Business Store'}
-              </h2>
+              {(profile.businessName || profile.name) && (
+                <h2 className="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">
+                  {profile.businessName || profile.name}
+                </h2>
+              )}
               {profile.tagline && (
-                <p className="text-xs text-slate-500 mt-0.5">{profile.tagline}</p>
+                <p className="text-xs text-slate-500 mt-1">{profile.tagline}</p>
               )}
               <div className="text-xs text-slate-500 mt-2 space-y-0.5">
                 {profile.address && <p>{profile.address}</p>}
@@ -532,7 +542,9 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
               </div>
               <div>
                 <span className="text-slate-500">{t.issuedBy}:</span>
-                <p className="font-medium text-slate-800">{sale.cashierName || 'Staff'}</p>
+                <p className="font-medium text-slate-800">
+                  {sale.cashierName || currentUser?.name || profile.ownerName || ''}
+                </p>
               </div>
             </div>
 

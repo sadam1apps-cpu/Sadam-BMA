@@ -42,6 +42,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     profile,
     products,
     customers,
+    currentUser,
     addSale,
     addQuotation,
     addCustomer,
@@ -247,13 +248,14 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     }
 
     // Customer details
-    let finalCustomerName = 'Walk-in Customer';
+    const defaultCustName = language === 'pt' ? 'Cliente Balcão' : 'Walk-in Customer';
+    let finalCustomerName = defaultCustName;
     let finalCustomerId = '';
     let customerPhone: string | undefined = undefined;
 
     if (customerId === 'new') {
       if (!customCustomerName.trim()) {
-        setErrorMsg('Please enter customer name or select an existing account.');
+        setErrorMsg(language === 'pt' ? 'Informe o nome do cliente.' : 'Please enter customer name or select an existing account.');
         return;
       }
       finalCustomerName = customCustomerName.trim();
@@ -291,6 +293,13 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       paymentStatus = 'partial';
     }
 
+    const finalCashierName =
+      currentUser?.name ||
+      profile.ownerName ||
+      profile.businessName ||
+      profile.name ||
+      '';
+
     const createdSale = addSale({
       customerId: finalCustomerId,
       customerName: finalCustomerName,
@@ -304,7 +313,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       balanceDue,
       paymentMethod,
       paymentStatus,
-      cashierName: currentRole === 'owner' ? 'Alex Mercer (Owner)' : 'Staff Member',
+      cashierName: finalCashierName,
       notes: notes.trim() || undefined,
     });
 
@@ -335,12 +344,13 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const handleSaveAsQuotation = () => {
     if (selectedItems.length === 0) return;
 
-    let finalCustomerName = 'Walk-in Customer';
+    const defaultQuoteCustName = language === 'pt' ? 'Cliente Balcão' : 'Walk-in Customer';
+    let finalCustomerName = defaultQuoteCustName;
     let finalCustomerId = '';
     let customerPhone: string | undefined = undefined;
 
     if (customerId === 'new') {
-      finalCustomerName = customCustomerName.trim() || 'Walk-in Customer';
+      finalCustomerName = customCustomerName.trim() || defaultQuoteCustName;
       customerPhone = customCustomerPhone.trim() || undefined;
     } else if (customerId !== 'walk-in') {
       const existing = customers.find((c) => c.id === customerId);
@@ -355,13 +365,20 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
     validUntilDate.setDate(validUntilDate.getDate() + 15);
     const validUntil = validUntilDate.toISOString().slice(0, 10);
 
+    const finalCashierName =
+      currentUser?.name ||
+      profile.ownerName ||
+      profile.businessName ||
+      profile.name ||
+      '';
+
     addQuotation({
       customerId: finalCustomerId,
       customerName: finalCustomerName,
       customerPhone,
       items: invoiceItems.map((item) => ({
         productId: item.productId,
-        productName: item.productName,
+        productName: item.productName || (language === 'pt' ? 'Artigo' : 'Item'),
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: item.subtotal,
@@ -372,7 +389,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       total: grandTotal,
       status: 'sent',
       validUntil,
-      cashierName: 'Staff',
+      cashierName: finalCashierName,
       notes: notes.trim() || undefined,
     });
 

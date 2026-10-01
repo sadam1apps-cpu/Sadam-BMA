@@ -9,7 +9,7 @@ interface ExpenseModalProps {
 }
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) => {
-  const { addExpense, accounts, currentRole, profile, t, language } = useBusiness();
+  const { addExpense, accounts, currentUser, currentRole, profile, t, language } = useBusiness();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Expense['category']>('utilities');
@@ -24,13 +24,20 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose }) =
     e.preventDefault();
     if (!title.trim() || amount <= 0) return;
 
+    const recordedBy =
+      currentUser?.name ||
+      profile.ownerName ||
+      profile.businessName ||
+      profile.name ||
+      (language === 'pt' ? 'Administrador' : 'Administrator');
+
     addExpense({
       title: title.trim(),
       category,
       amount,
       accountId,
       paidTo: paidTo.trim() || undefined,
-      recordedBy: currentRole === 'owner' ? 'Alex Mercer (Owner)' : 'Staff',
+      recordedBy,
       notes: notes.trim() || undefined,
     });
 

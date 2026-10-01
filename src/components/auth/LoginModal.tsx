@@ -269,7 +269,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 ) : profile.logo ? (
                   <img
                     src={profile.logo}
-                    alt={profile.name || 'Store'}
+                    alt={profile.businessName || profile.name || ''}
                     className="w-full h-full object-contain p-0.5 bg-white rounded-lg"
                   />
                 ) : (
@@ -278,7 +278,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
               <div className="min-w-0">
                 <h2 className="text-xs sm:text-sm font-bold text-white truncate leading-tight tracking-tight">
-                  {profile.name || t.terminalAccess}
+                  {profile.businessName || profile.name || t.terminalAccess}
                 </h2>
                 {isScreenLocked && currentUser && (
                   <p className="text-[10px] text-slate-300 truncate leading-normal">

@@ -84,10 +84,10 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Left: Business Brand */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 sm:flex-initial max-w-[45%] sm:max-w-none">
             {profile.logo ? (
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-700/80 p-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-700/80 p-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden mr-0.5">
                 <img
                   src={profile.logo}
-                  alt={profile.name || 'Store Logo'}
+                  alt={profile.businessName || profile.name || ''}
                   className="w-full h-full object-contain"
                 />
               </div>
@@ -99,7 +99,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-bold tracking-tight text-xs sm:text-base text-white truncate">
-                  {profile.name}
+                  {profile.businessName || profile.name || ''}
                 </span>
                 <span className="hidden md:inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
                   <span className="w-1 h-1 rounded-full bg-emerald-400 mr-1 animate-pulse"></span>
