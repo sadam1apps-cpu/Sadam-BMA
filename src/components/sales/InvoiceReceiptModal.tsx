@@ -71,11 +71,23 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 18;
       const contentWidth = pageWidth - margin * 2;
-      let y = 22;
+      let y = profile.logo ? 14 : 22;
 
-      // 1. Store Header
+      // 0. Business Logo (if configured)
+      if (profile.logo) {
+        try {
+          const logoW = 20;
+          const logoH = 20;
+          doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
+          y += logoH + 3;
+        } catch (e) {
+          console.warn('PDF logo render warning:', e);
+        }
+      }
+
+      // 1. Store Business Name & Details
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
+      doc.setFontSize(15);
       doc.setTextColor(15, 23, 42); // slate-900
       const storeName = (profile.name || profile.businessName || 'Business Store').toUpperCase();
       doc.text(storeName, pageWidth / 2, y, { align: 'center' });
@@ -474,9 +486,18 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
 
           {/* Printable Receipt Body */}
           <div id="printable-receipt" className="p-6 sm:p-8 space-y-5 text-slate-900 text-sm bg-white">
-            {/* Header */}
+            {/* Store Information */}
             <div className="text-center border-b border-slate-200 pb-4">
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-tight">
+              {profile.logo && (
+                <div className="flex justify-center mb-3">
+                  <img
+                    src={profile.logo}
+                    alt={profile.name || 'Store Logo'}
+                    className="max-h-16 max-w-[180px] object-contain"
+                  />
+                </div>
+              )}
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900 uppercase tracking-tight">
                 {profile.name || profile.businessName || 'Business Store'}
               </h2>
               {profile.tagline && (

@@ -83,9 +83,19 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Left: Business Brand */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 sm:flex-initial max-w-[45%] sm:max-w-none">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold shrink-0 shadow-xs">
-              <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
+            {profile.logo ? (
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-700/80 p-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                <img
+                  src={profile.logo}
+                  alt={profile.name || 'Store Logo'}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold shrink-0 shadow-xs">
+                <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+            )}
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-bold tracking-tight text-xs sm:text-base text-white truncate">

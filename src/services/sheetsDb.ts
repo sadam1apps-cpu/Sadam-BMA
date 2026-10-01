@@ -198,6 +198,7 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'address', type: 'string', description: 'Store physical street address', sample: '450 Downtown Avenue, City Center', required: true },
       { name: 'taxRate', type: 'number', description: 'Sales tax rate percentage', sample: '5.0', required: true },
       { name: 'invoiceFooter', type: 'string', description: 'Printed bottom receipt message', sample: 'Thank you for shopping with us! Returns accepted within 14 days.', required: true },
+      { name: 'logo', type: 'string', description: 'Business brand logo data URL or image link', sample: '', required: false },
     ],
   },
   {
@@ -289,7 +290,7 @@ var SCHEMAS = {
   'Accounts': ['id', 'name', 'type', 'bankName', 'accountHolder', 'accountNumber', 'ibanOrNib', 'swiftCode', 'branchName', 'balance', 'currency', 'notes'],
   'StockMovements': ['id', 'productId', 'productName', 'type', 'quantity', 'previousStock', 'newStock', 'reason', 'timestamp', 'performedBy'],
   'Employees': ['id', 'name', 'role', 'phone', 'email', 'monthlySalary', 'commissionRate', 'attendanceStatus', 'lastClockIn', 'joinedDate', 'pin', 'password', 'status', 'customPermissions', 'lastLogin'],
-  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language'],
+  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language', 'logo'],
   'Quotations': ['id', 'quotationNumber', 'customerId', 'customerName', 'customerPhone', 'customerEmail', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'status', 'validUntil', 'timestamp', 'cashierName', 'notes'],
   'PurchaseOrders': ['id', 'poNumber', 'supplierId', 'supplierName', 'supplierContact', 'supplierPhone', 'items', 'subtotal', 'taxAmount', 'total', 'status', 'expectedDeliveryDate', 'timestamp', 'receivedAt', 'createdBy', 'notes']
 };
@@ -412,10 +413,62 @@ function doPost(e) {
 
 /**
  * Self-healing column & header resolver:
- * Ensures sheet exists, inspects Row 1, and appends any missing headers!
+ * Ensures sheet exists (flexible name match), inspects Row 1, and appends any missing headers!
  */
+function findSheetFlexible(ss, targetName) {
+  var sheet = ss.getSheetByName(targetName);
+  if (sheet) return sheet;
+
+  var cleanTarget = targetName.toLowerCase().replace(/[\\s_\\-]/g, '');
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    var sClean = s.getName().trim().toLowerCase().replace(/[\\s_\\-]/g, '');
+    if (sClean === cleanTarget) return s;
+    if (cleanTarget === 'purchaseorders' && (sClean === 'purchaseorder' || sClean === 'po' || sClean === 'ordensdecompra' || sClean === 'ordens' || sClean === 'orders')) return s;
+    if (cleanTarget === 'quotations' && (sClean === 'quotation' || sClean === 'orcamentos' || sClean === 'orcamento' || sClean === 'quotes')) return s;
+  }
+  return null;
+}
+
+function cleanColKey(name) {
+  return String(name || '').trim().toLowerCase().replace(/[\\s_\\-\\#\\(\\)]/g, '');
+}
+
+function normalizeHeaderAlias(name) {
+  var k = cleanColKey(name);
+  if (k === 'quote' || k === 'quotenumber' || k === 'quoteno' || k === 'norcamento' || k === 'orcamentono' || k === 'quotation') return 'quotationnumber';
+  if (k === 'po' || k === 'pono' || k === 'nordem' || k === 'ordemdecompra' || k === 'purchaseorderno' || k === 'order') return 'ponumber';
+  if (k === 'customer' || k === 'client' || k === 'cliente') return 'customername';
+  if (k === 'supplier' || k === 'vendor' || k === 'fornecedor') return 'suppliername';
+  if (k === 'validity' || k === 'validto' || k === 'validoate' || k === 'expiration') return 'validuntil';
+  if (k === 'delivery' || k === 'expecteddelivery' || k === 'deliverydate' || k === 'previsaodeentrega') return 'expecteddeliverydate';
+  if (k === 'grandtotal' || k === 'totalamount' || k === 'valortotal' || k === 'totalcost' || k === 'totalprice') return 'total';
+  if (k === 'tax' || k === 'imposto' || k === 'iva') return 'taxamount';
+  if (k === 'discount' || k === 'desconto') return 'discountamount';
+  if (k === 'date' || k === 'createdat' || k === 'data') return 'timestamp';
+  if (k === 'cashier' || k === 'staff' || k === 'preparadopor') return 'cashiername';
+  return k;
+}
+
+function makeColMap(headers) {
+  var map = {};
+  for (var i = 0; i < headers.length; i++) {
+    var raw = headers[i];
+    var norm = normalizeHeaderAlias(raw);
+    if (norm) {
+      map[norm] = i;
+    }
+    var clean = cleanColKey(raw);
+    if (clean && map[clean] === undefined) {
+      map[clean] = i;
+    }
+  }
+  return map;
+}
+
 function ensureSheetAndHeaders(ss, sheetName, expectedHeaders) {
-  var sheet = ss.getSheetByName(sheetName);
+  var sheet = findSheetFlexible(ss, sheetName);
   if (!sheet) {
     // Self-healing: Automatically create tab if not yet present
     sheet = ss.insertSheet(sheetName);
@@ -440,12 +493,13 @@ function ensureSheetAndHeaders(ss, sheetName, expectedHeaders) {
     return String(h).trim();
   });
 
-  var lowerCurrent = currentHeaders.map(function(h) { return h.toLowerCase(); });
+  var normCurrent = currentHeaders.map(function(h) { return normalizeHeaderAlias(h); });
   var missingHeaders = [];
 
   for (var i = 0; i < expectedHeaders.length; i++) {
     var exp = expectedHeaders[i];
-    if (lowerCurrent.indexOf(exp.toLowerCase()) === -1) {
+    var normExp = normalizeHeaderAlias(exp);
+    if (normCurrent.indexOf(normExp) === -1) {
       missingHeaders.push(exp);
     }
   }
@@ -463,20 +517,6 @@ function ensureSheetAndHeaders(ss, sheetName, expectedHeaders) {
     headers: currentHeaders,
     colMap: makeColMap(currentHeaders)
   };
-}
-
-/**
- * Creates case-insensitive mapping: { 'name': 1, 'sku': 2 } (1-indexed)
- */
-function makeColMap(headers) {
-  var map = {};
-  for (var i = 0; i < headers.length; i++) {
-    var key = headers[i].trim().toLowerCase();
-    if (key) {
-      map[key] = i; // 0-indexed column offset in row array
-    }
-  }
-  return map;
 }
 
 /**

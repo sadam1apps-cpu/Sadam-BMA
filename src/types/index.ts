@@ -36,6 +36,7 @@ export interface BusinessProfile {
   taxRate: number; // e.g., 5 for 5%
   invoiceFooter?: string;
   language?: Language;
+  logo?: string; // Base64 data URL or image URL
 }
 
 export interface Product {
@@ -91,6 +92,61 @@ export interface Sale {
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   timestamp: string; // ISO date string
   cashierName: string;
+  notes?: string;
+}
+
+export interface QuotationItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface Quotation {
+  id: string;
+  quotationNumber: string; // e.g. "QT-1001"
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  items: QuotationItem[];
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  total: number;
+  status: 'draft' | 'sent' | 'accepted' | 'declined' | 'converted';
+  validUntil: string;
+  timestamp: string;
+  cashierName: string;
+  notes?: string;
+}
+
+export interface PurchaseOrderItem {
+  productId: string;
+  productName: string;
+  sku?: string;
+  quantity: number;
+  unitCost: number;
+  subtotal: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  poNumber: string; // e.g. "PO-1001"
+  supplierId: string;
+  supplierName: string;
+  supplierContact?: string;
+  supplierPhone?: string;
+  items: PurchaseOrderItem[];
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  status: 'draft' | 'issued' | 'received' | 'cancelled';
+  expectedDeliveryDate?: string;
+  timestamp: string;
+  receivedAt?: string;
+  createdBy: string;
   notes?: string;
 }
 

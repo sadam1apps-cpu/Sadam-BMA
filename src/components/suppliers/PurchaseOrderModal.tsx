@@ -295,7 +295,19 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 18;
-      let y = 22;
+      let y = profile.logo ? 14 : 22;
+
+      // Business Logo
+      if (profile.logo) {
+        try {
+          const logoW = 20;
+          const logoH = 20;
+          doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
+          y += logoH + 3;
+        } catch (e) {
+          console.warn('PDF logo render error:', e);
+        }
+      }
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
@@ -510,13 +522,24 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
             <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3.5 text-xs sm:text-sm print:p-0 no-scrollbar">
               {/* Meta Card */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    {profile.name || 'Store'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    {profile.address || ''} {profile.phone ? `• ${profile.phone}` : ''}
-                  </p>
+                <div className="flex items-center gap-3">
+                  {profile.logo && (
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                      <img
+                        src={profile.logo}
+                        alt={profile.name || 'Store Logo'}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900">
+                      {profile.name || 'Store'}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      {profile.address || ''} {profile.phone ? `• ${profile.phone}` : ''}
+                    </p>
+                  </div>
                 </div>
                 <div className="text-left sm:text-right">
                   <div className="flex items-center sm:justify-end gap-1.5">

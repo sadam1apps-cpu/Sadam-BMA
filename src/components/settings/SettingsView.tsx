@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { Store, DollarSign, Check, Database, Globe } from 'lucide-react';
+import { Store, DollarSign, Check, Database, Globe, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 import { SheetsDatabasePanel } from '../sheets/SheetsDatabasePanel';
 import { Language } from '../../types';
 
@@ -8,6 +8,7 @@ export const SettingsView: React.FC = () => {
   const { profile, updateProfile, currentRole, permissions, language, setLanguage, t } = useBusiness();
   const canAccessDatabase = currentRole === 'owner' || permissions.canManageDatabase;
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [businessName, setBusinessName] = useState(profile.businessName || profile.name || '');
   const [ownerName, setOwnerName] = useState(profile.ownerName || '');
   const [phone, setPhone] = useState(profile.phone || '');
@@ -17,6 +18,8 @@ export const SettingsView: React.FC = () => {
   const [taxRate, setTaxRate] = useState<number>(profile.taxRate ?? 0);
   const [invoiceFooter, setInvoiceFooter] = useState(profile.invoiceFooter || 'Thank you for your business!');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
+  const [logo, setLogo] = useState<string>(profile.logo || '');
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'database' | 'store' | 'billing' | 'language'>(
     canAccessDatabase ? 'database' : 'store'
@@ -32,7 +35,79 @@ export const SettingsView: React.FC = () => {
     setTaxRate(profile.taxRate ?? 0);
     setInvoiceFooter(profile.invoiceFooter || 'Thank you for your business!');
     setSelectedLanguage(language);
+    setLogo(profile.logo || '');
+    setLogoError(null);
   }, [profile, language]);
+
+  const handleLogoFile = (file: File) => {
+    setLogoError(null);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setLogoError(
+        language === 'pt'
+          ? 'Por favor, selecione um ficheiro de imagem válido (PNG, JPG, SVG, WebP).'
+          : 'Please select a valid image file (PNG, JPG, SVG, WebP).'
+      );
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError(
+        language === 'pt'
+          ? 'O ficheiro excede o tamanho máximo de 5MB.'
+          : 'File exceeds maximum 5MB size.'
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return;
+
+      // Rescale high-res images to max 400x400 to keep localStorage & Google Sheets ultra-fast
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const isPng = file.type === 'image/png' || result.includes('image/png');
+          const dataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.9);
+          setLogo(dataUrl);
+        } else {
+          setLogo(result);
+        }
+      };
+      img.onerror = () => {
+        setLogo(result);
+      };
+      img.src = result;
+    };
+    reader.onerror = () => {
+      setLogoError(
+        language === 'pt' ? 'Erro ao processar ficheiro de imagem.' : 'Error reading image file.'
+      );
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +123,7 @@ export const SettingsView: React.FC = () => {
       taxRate,
       invoiceFooter,
       language: selectedLanguage,
+      logo,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -153,13 +229,119 @@ export const SettingsView: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden gap-2">
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-2">
             {/* Store & Contact Information */}
             <div
-              className={`bg-white rounded-xl border border-slate-200 p-2.5 sm:p-4 shadow-2xs space-y-2 sm:space-y-3 ${
+              className={`bg-white rounded-xl border border-slate-200 p-2.5 sm:p-4 shadow-2xs space-y-3 sm:space-y-3.5 ${
                 activeTab !== 'store' ? 'hidden' : 'block'
               }`}
             >
+              {/* Business Logo Upload Section */}
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleLogoFile(file);
+                }}
+                className="bg-slate-50/80 border border-slate-200/90 rounded-xl p-2.5 sm:p-3.5"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Logo Preview or Empty Placeholder */}
+                    <div className="relative group shrink-0">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center overflow-hidden shadow-2xs">
+                        {logo ? (
+                          <img
+                            src={logo}
+                            alt="Business Logo Preview"
+                            className="w-full h-full object-contain p-1"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-400 p-1">
+                            <ImageIcon className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.5]" />
+                            <span className="text-[8px] sm:text-[9px] uppercase font-bold tracking-wider mt-0.5 text-slate-400 text-center">
+                              {language === 'pt' ? 'Sem Logo' : 'No Logo'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight">
+                          {language === 'pt' ? 'Logótipo da Empresa' : 'Business Brand Logo'}
+                        </h3>
+                        {logo && (
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {language === 'pt' ? 'Ativo' : 'Active'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        {language === 'pt'
+                          ? 'Aparece automaticamente nas Faturas, Orçamentos, Ordens de Compra e no canto superior do sistema.'
+                          : 'Shown on Invoices, Quotations, Purchase Orders, and the top navigation corner.'}
+                      </p>
+                      {logoError && (
+                        <p className="text-[10px] text-rose-600 font-semibold mt-1 animate-fadeIn">
+                          {logoError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions: Upload & Remove */}
+                  <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleLogoFile(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>
+                        {logo
+                          ? language === 'pt'
+                            ? 'Alterar'
+                            : 'Change'
+                          : language === 'pt'
+                          ? 'Carregar Logo'
+                          : 'Upload Logo'}
+                      </span>
+                    </button>
+                    {logo && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogo('');
+                          setLogoError(null);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                        title={language === 'pt' ? 'Remover Logótipo' : 'Remove Logo'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">
+                          {language === 'pt' ? 'Remover' : 'Remove'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Text Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
                   <label className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-0.5 sm:mb-1">
