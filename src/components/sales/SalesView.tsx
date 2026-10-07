@@ -69,6 +69,8 @@ export const SalesView: React.FC<SalesViewProps> = ({
     const matchesSearch =
       String(q.quotationNumber || '').toLowerCase().includes(term) ||
       String(q.customerName || '').toLowerCase().includes(term) ||
+      (q.customerNuit && String(q.customerNuit).toLowerCase().includes(term)) ||
+      (q.customerAddress && String(q.customerAddress).toLowerCase().includes(term)) ||
       (q.customerPhone && String(q.customerPhone).includes(searchTerm));
 
     const matchesStatus =
@@ -554,9 +556,20 @@ export const SalesView: React.FC<SalesViewProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <div className="truncate pr-2">
                         <span className="font-semibold text-slate-900">{quote.customerName}</span>
-                        <span className="text-[10px] text-slate-400 ml-1">
-                          (Valid: {quote.validUntil})
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-500 mt-0.5">
+                          {quote.customerPhone && <span>{quote.customerPhone}</span>}
+                          {quote.customerNuit && (
+                            <span className="font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 font-semibold">
+                              NUIT: {quote.customerNuit}
+                            </span>
+                          )}
+                          <span className="text-slate-400">• (Valid: {quote.validUntil})</span>
+                        </div>
+                        {quote.customerAddress && (
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {quote.customerAddress}
+                          </div>
+                        )}
                       </div>
                       <span className="font-bold text-indigo-700 text-sm">
                         {profile.currency}{quote.total.toLocaleString()}
@@ -635,9 +648,21 @@ export const SalesView: React.FC<SalesViewProps> = ({
                           #{quote.quotationNumber}
                         </td>
                         <td className="py-2.5 px-3.5 font-medium text-slate-900">
-                          {quote.customerName}
-                          {quote.customerPhone && (
-                            <span className="text-slate-400 text-[10px] ml-1">({quote.customerPhone})</span>
+                          <div className="font-bold text-slate-900">{quote.customerName}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            {quote.customerPhone && (
+                              <span className="text-slate-500 text-[10px]">{quote.customerPhone}</span>
+                            )}
+                            {quote.customerNuit && (
+                              <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">
+                                NUIT: {quote.customerNuit}
+                              </span>
+                            )}
+                          </div>
+                          {quote.customerAddress && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-xs mt-0.5">
+                              {quote.customerAddress}
+                            </div>
                           )}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">

@@ -29,10 +29,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredCustomers = customers.filter((c) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      (c.name && String(c.name).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.name && String(c.name).toLowerCase().includes(term)) ||
       String(c.phone || '').includes(searchTerm) ||
-      (c.email && String(c.email).toLowerCase().includes(searchTerm.toLowerCase()));
+      (c.nuit && String(c.nuit).toLowerCase().includes(term)) ||
+      (c.address && String(c.address).toLowerCase().includes(term)) ||
+      (c.email && String(c.email).toLowerCase().includes(term));
 
     const matchesDebt = filter === 'all' ? true : c.outstandingDebt > 0;
     return matchesSearch && matchesDebt;
@@ -169,7 +172,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 pr-2 truncate">
                       <span className="font-bold text-xs text-slate-900 truncate block">{cust.name}</span>
-                      <span className="text-[10px] text-slate-400">{cust.phone}</span>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                        <span>{cust.phone}</span>
+                        {cust.nuit && <span className="font-mono bg-slate-100 px-1 rounded text-slate-700">NUIT: {cust.nuit}</span>}
+                      </div>
+                      {cust.address && (
+                        <div className="text-[10px] text-slate-400 truncate">{cust.address}</div>
+                      )}
                     </div>
                     <div>
                       {hasDebt ? (
@@ -250,8 +259,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                     <tr key={cust.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-2.5 px-3.5">
                         <div className="font-bold text-slate-900">{cust.name}</div>
-                        {cust.email && (
-                          <div className="text-[10px] text-slate-500">{cust.email}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {cust.email && (
+                            <span className="text-[10px] text-slate-500">{cust.email}</span>
+                          )}
+                          {cust.nuit && (
+                            <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                              NUIT: {cust.nuit}
+                            </span>
+                          )}
+                        </div>
+                        {cust.address && (
+                          <div className="text-[10px] text-slate-400 truncate max-w-xs">{cust.address}</div>
                         )}
                       </td>
 

@@ -110,6 +110,8 @@ export interface Quotation {
   customerName: string;
   customerPhone?: string;
   customerEmail?: string;
+  customerNuit?: string;
+  customerAddress?: string;
   items: QuotationItem[];
   subtotal: number;
   discountAmount: number;
@@ -138,6 +140,8 @@ export interface PurchaseOrder {
   supplierName: string;
   supplierContact?: string;
   supplierPhone?: string;
+  supplierNuit?: string;
+  supplierAddress?: string;
   items: PurchaseOrderItem[];
   subtotal: number;
   taxAmount: number;
@@ -156,6 +160,7 @@ export interface Customer {
   phone: string;
   email?: string;
   address?: string;
+  nuit?: string; // Tax ID / NUIT
   outstandingDebt: number;
   creditLimit: number;
   totalSpent: number;
@@ -170,6 +175,7 @@ export interface Supplier {
   phone: string;
   email?: string;
   address?: string;
+  nuit?: string; // Tax ID / NUIT
   category: string;
   amountOwed: number;
   totalPurchased: number;

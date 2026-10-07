@@ -239,6 +239,10 @@ export interface TranslationDictionary {
   addNewCustomer: string;
   editCustomer: string;
   customerName: string;
+  customerNuit: string;
+  customerAddress: string;
+  supplierNuit: string;
+  supplierAddress: string;
   creditLimit: string;
   outstandingDebt: string;
   totalSpent: string;
@@ -549,6 +553,10 @@ export const translations: Record<Language, TranslationDictionary> = {
     addNewCustomer: 'Add New Customer',
     editCustomer: 'Edit Customer',
     customerName: 'Customer Name *',
+    customerNuit: 'Customer NUIT / Tax ID',
+    customerAddress: 'Customer Address',
+    supplierNuit: 'Supplier NUIT / Tax ID',
+    supplierAddress: 'Supplier Physical Address',
     creditLimit: 'Credit Limit',
     outstandingDebt: 'Outstanding Balance',
     totalSpent: 'Total Purchases',
@@ -858,6 +866,10 @@ export const translations: Record<Language, TranslationDictionary> = {
     addNewCustomer: 'Adicionar Cliente',
     editCustomer: 'Editar Cliente',
     customerName: 'Nome do Cliente *',
+    customerNuit: 'NUIT do Cliente',
+    customerAddress: 'Endereço do Cliente',
+    supplierNuit: 'NUIT do Fornecedor',
+    supplierAddress: 'Endereço do Fornecedor',
     creditLimit: 'Limite de Crédito Permitido',
     outstandingDebt: 'Saldo Devedor / Dívida Atual',
     totalSpent: 'Total Comprado na Loja',

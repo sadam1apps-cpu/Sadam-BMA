@@ -22,6 +22,7 @@ import {
   Layers,
   Building2,
   PackageCheck,
+  MapPin,
 } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
@@ -62,6 +63,12 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   });
   const [customSupplierName, setCustomSupplierName] = useState<string>('');
   const [customSupplierPhone, setCustomSupplierPhone] = useState<string>('');
+  const [customSupplierNuit, setCustomSupplierNuit] = useState<string>(() => {
+    return suppliers[0]?.nuit || '';
+  });
+  const [customSupplierAddress, setCustomSupplierAddress] = useState<string>(() => {
+    return suppliers[0]?.address || '';
+  });
   const [selectedItems, setSelectedItems] = useState<
     Array<{
       productId: string;
@@ -211,6 +218,19 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   const taxAmount = (subtotal * taxPercent) / 100;
   const grandTotal = subtotal + taxAmount;
 
+  const currentSupplierName =
+    supplierId === 'new'
+      ? customSupplierName.trim() || (language === 'pt' ? 'Novo Fornecedor' : 'New Vendor')
+      : suppliers.find((s) => s.id === supplierId)?.companyName || (language === 'pt' ? 'Fornecedor' : 'Supplier');
+
+  const currentSupplierNuit =
+    customSupplierNuit.trim() ||
+    (supplierId !== 'new' ? suppliers.find((s) => s.id === supplierId)?.nuit || '' : '');
+
+  const currentSupplierAddress =
+    customSupplierAddress.trim() ||
+    (supplierId !== 'new' ? suppliers.find((s) => s.id === supplierId)?.address || '' : '');
+
   // Submit Purchase Order
   const handleSavePO = (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +243,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     let finalSupplierName = '';
     let finalSupplierId = '';
     let supplierPhone: string | undefined = undefined;
+    let supplierNuit: string | undefined = undefined;
+    let supplierAddress: string | undefined = undefined;
 
     if (supplierId === 'new') {
       if (!customSupplierName.trim()) {
@@ -231,12 +253,16 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       }
       finalSupplierName = customSupplierName.trim();
       supplierPhone = customSupplierPhone.trim() || undefined;
+      supplierNuit = customSupplierNuit.trim() || undefined;
+      supplierAddress = customSupplierAddress.trim() || undefined;
     } else {
       const existing = suppliers.find((s) => s.id === supplierId);
       if (existing) {
         finalSupplierId = existing.id;
         finalSupplierName = existing.companyName;
         supplierPhone = existing.phone;
+        supplierNuit = customSupplierNuit.trim() || existing.nuit || undefined;
+        supplierAddress = customSupplierAddress.trim() || existing.address || undefined;
       } else {
         setErrorMsg(language === 'pt' ? 'Selecione ou adicione um fornecedor.' : 'Please select or add a supplier.');
         return;
@@ -269,6 +295,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       supplierId: finalSupplierId,
       supplierName: finalSupplierName,
       supplierPhone,
+      supplierNuit,
+      supplierAddress,
       items: poItems,
       subtotal,
       taxAmount,
@@ -286,6 +314,8 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     setSupplierId(suppliers[0]?.id || 'new');
     setCustomSupplierName('');
     setCustomSupplierPhone('');
+    setCustomSupplierNuit(suppliers[0]?.nuit || '');
+    setCustomSupplierAddress(suppliers[0]?.address || '');
     setSelectedItems([]);
     setProductSearchTerm('');
     setErrorMsg('');
@@ -393,7 +423,24 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           { align: 'right' }
         );
       }
-      y += 8;
+      y += 5;
+
+      const hasPoNuit = Boolean(poToView.supplierNuit);
+      const hasPoAddress = Boolean(poToView.supplierAddress);
+
+      if (hasPoNuit) {
+        doc.text(`NUIT: ${poToView.supplierNuit}`, margin, y);
+        y += 5;
+      }
+      if (hasPoAddress) {
+        doc.text(
+          `${language === 'pt' ? 'Endereço' : 'Address'}: ${poToView.supplierAddress}`,
+          margin,
+          y
+        );
+        y += 5;
+      }
+      y += 2;
 
       doc.setFillColor(248, 250, 252);
       doc.rect(margin, y, pageWidth - margin * 2, 7, 'F');
@@ -616,19 +663,32 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
               </div>
 
               {/* Vendor Info */}
-              <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                    <Building2 className="w-3.5 h-3.5" />
+              <div className="p-3.5 bg-white border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shadow-2xs">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 sm:mt-0">
+                    <Building2 className="w-4 h-4" />
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">{poToView.supplierName}</div>
-                    <div className="text-[11px] text-slate-500">
-                      {poToView.supplierPhone || (language === 'pt' ? 'Sem telefone' : 'No phone')}
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                      {poToView.supplierName}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 mt-0.5">
+                      {poToView.supplierPhone && (
+                        <span>{poToView.supplierPhone}</span>
+                      )}
+                      <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">
+                        NUIT: {poToView.supplierNuit || '—'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {poToView.supplierAddress || (language === 'pt' ? 'Endereço não informado' : 'No address provided')}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="text-right text-[11px] text-slate-500">
+                <div className="text-left sm:text-right text-[11px] text-slate-500 shrink-0 border-t sm:border-t-0 pt-1.5 sm:pt-0 border-slate-100">
                   {language === 'pt' ? 'Emitido por' : 'Issued by'}:{' '}
                   <span className="font-bold text-slate-700">{poToView.createdBy}</span>
                 </div>
@@ -789,7 +849,20 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                     </label>
                     <select
                       value={supplierId}
-                      onChange={(e) => setSupplierId(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSupplierId(val);
+                        if (val !== 'new') {
+                          const existing = suppliers.find((s) => s.id === val);
+                          if (existing) {
+                            setCustomSupplierNuit(existing.nuit || '');
+                            setCustomSupplierAddress(existing.address || '');
+                          }
+                        } else {
+                          setCustomSupplierNuit('');
+                          setCustomSupplierAddress('');
+                        }
+                      }}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                     >
                       {suppliers.map((s) => (
@@ -801,24 +874,75 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                     </select>
 
                     {supplierId === 'new' && (
-                      <div className="mt-1.5 grid grid-cols-2 gap-1 animate-fadeIn">
-                        <input
-                          type="text"
-                          placeholder="Vendor Name *"
-                          value={customSupplierName}
-                          onChange={(e) => setCustomSupplierName(e.target.value)}
-                          className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1"
-                          required
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Phone"
-                          value={customSupplierPhone}
-                          onChange={(e) => setCustomSupplierPhone(e.target.value)}
-                          className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1"
-                        />
+                      <div className="mt-1.5 space-y-1 animate-fadeIn">
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'Nome do Fornecedor *' : 'Vendor Name *'}
+                            value={customSupplierName}
+                            onChange={(e) => setCustomSupplierName(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 font-semibold text-slate-900 focus:outline-none"
+                            required
+                          />
+                          <input
+                            type="tel"
+                            placeholder={t.phoneLabel}
+                            value={customSupplierPhone}
+                            onChange={(e) => setCustomSupplierPhone(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'NUIT do Fornecedor' : 'Supplier NUIT'}
+                            value={customSupplierNuit}
+                            onChange={(e) => setCustomSupplierNuit(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none font-mono"
+                          />
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'Endereço do Fornecedor' : 'Supplier Address'}
+                            value={customSupplierAddress}
+                            onChange={(e) => setCustomSupplierAddress(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none"
+                          />
+                        </div>
                       </div>
                     )}
+
+                    {supplierId !== 'new' && (() => {
+                      const selSup = suppliers.find((s) => s.id === supplierId);
+                      if (!selSup) return null;
+                      return (
+                        <div className="mt-1.5 p-2 rounded-lg bg-emerald-50/70 border border-emerald-100 text-[10px] text-emerald-950 space-y-1 animate-fadeIn">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono font-semibold">
+                              NUIT: {customSupplierNuit || selSup.nuit || '—'}
+                            </span>
+                            <span className="truncate text-emerald-800">
+                              {customSupplierAddress || selSup.address || (language === 'pt' ? 'Sem endereço' : 'No address')}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 pt-1 border-t border-emerald-100/80">
+                            <input
+                              type="text"
+                              placeholder={language === 'pt' ? 'Editar NUIT' : 'Supplier NUIT'}
+                              value={customSupplierNuit}
+                              onChange={(e) => setCustomSupplierNuit(e.target.value)}
+                              className="w-full text-[10px] bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none font-mono"
+                            />
+                            <input
+                              type="text"
+                              placeholder={language === 'pt' ? 'Editar Endereço' : 'Supplier Address'}
+                              value={customSupplierAddress}
+                              onChange={(e) => setCustomSupplierAddress(e.target.value)}
+                              className="w-full text-[10px] bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Barcode / SKU Scan Bar (Standard from NewSaleModal) */}
@@ -1210,6 +1334,37 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                 }`}
               >
                 <div className="space-y-2.5">
+                  {/* Supplier Target Details Card */}
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        {language === 'pt' ? 'Dados do Fornecedor' : 'Supplier Details'}
+                      </span>
+                      {currentSupplierNuit ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                          NUIT: {currentSupplierNuit}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">
+                          {language === 'pt' ? 'Sem NUIT' : 'No NUIT'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {currentSupplierName}
+                    </div>
+                    {currentSupplierAddress ? (
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{currentSupplierAddress}</span>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400">
+                        {language === 'pt' ? 'Endereço não informado' : 'No address provided'}
+                      </div>
+                    )}
+                  </div>
+
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                     {language === 'pt' ? 'Condições de Fornecimento' : 'Procurement Parameters'}
                   </span>

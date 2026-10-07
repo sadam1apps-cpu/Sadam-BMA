@@ -20,6 +20,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [nuit, setNuit] = useState('');
+  const [address, setAddress] = useState('');
   const [category, setCategory] = useState('Electronics & Audio');
   const [amountOwed, setAmountOwed] = useState<number>(0);
 
@@ -29,6 +31,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
       setContactPerson(supplierToEdit.contactPerson);
       setPhone(supplierToEdit.phone);
       setEmail(supplierToEdit.email || '');
+      setNuit(supplierToEdit.nuit || '');
+      setAddress(supplierToEdit.address || '');
       setCategory(supplierToEdit.category);
       setAmountOwed(supplierToEdit.amountOwed);
     } else {
@@ -36,6 +40,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
       setContactPerson('');
       setPhone('');
       setEmail('');
+      setNuit('');
+      setAddress('');
       setCategory('Electronics & Audio');
       setAmountOwed(0);
     }
@@ -53,6 +59,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         contactPerson: contactPerson.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        nuit: nuit.trim() || undefined,
+        address: address.trim() || undefined,
         category,
         amountOwed,
       });
@@ -62,6 +70,8 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
         contactPerson: contactPerson.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        nuit: nuit.trim() || undefined,
+        address: address.trim() || undefined,
         category,
         amountOwed,
       });
@@ -155,6 +165,34 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                {t.supplierNuit}
+              </label>
+              <input
+                type="text"
+                placeholder={language === 'pt' ? 'ex: 400987654' : 'e.g. 400987654'}
+                value={nuit}
+                onChange={(e) => setNuit(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                {t.supplierAddress}
+              </label>
+              <input
+                type="text"
+                placeholder={language === 'pt' ? 'Rua, Cidade, Armazém' : 'Street, Warehouse, City'}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none"
               />
             </div>

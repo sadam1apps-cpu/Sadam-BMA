@@ -16,6 +16,7 @@ import {
   PackageCheck,
   Clock,
   Calendar,
+  MapPin,
 } from 'lucide-react';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
 
@@ -51,13 +52,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
 
   // Filtered Suppliers
-  const filteredSuppliers = suppliers.filter(
-    (s) =>
-      (s.companyName && String(s.companyName).toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (s.contactPerson && String(s.contactPerson).toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (s.category && String(s.category).toLowerCase().includes(searchTerm.toLowerCase())) ||
+  const filteredSuppliers = suppliers.filter((s) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (s.companyName && String(s.companyName).toLowerCase().includes(term)) ||
+      (s.contactPerson && String(s.contactPerson).toLowerCase().includes(term)) ||
+      (s.category && String(s.category).toLowerCase().includes(term)) ||
+      (s.nuit && String(s.nuit).toLowerCase().includes(term)) ||
+      (s.address && String(s.address).toLowerCase().includes(term)) ||
       String(s.phone || '').includes(searchTerm)
-  );
+    );
+  });
 
   // Filtered Purchase Orders
   const filteredPOs = purchaseOrders.filter((po) => {
@@ -65,6 +70,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     const matchesSearch =
       String(po.poNumber || '').toLowerCase().includes(term) ||
       String(po.supplierName || '').toLowerCase().includes(term) ||
+      (po.supplierNuit && String(po.supplierNuit).toLowerCase().includes(term)) ||
+      (po.supplierAddress && String(po.supplierAddress).toLowerCase().includes(term)) ||
       (po.supplierContact && String(po.supplierContact).toLowerCase().includes(term));
 
     const matchesStatus =
@@ -319,7 +326,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 pr-2 truncate">
                           <span className="font-bold text-xs text-slate-900 truncate block">{sup.companyName}</span>
-                          <span className="text-[10px] text-slate-400 font-medium">{sup.contactPerson} • {sup.category}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-400 font-medium">
+                            <span>{sup.contactPerson}</span>
+                            <span>•</span>
+                            <span>{sup.category}</span>
+                            {sup.nuit && (
+                              <span className="font-mono bg-slate-100 text-slate-700 px-1 rounded">NUIT: {sup.nuit}</span>
+                            )}
+                          </div>
+                          {sup.address && (
+                            <div className="text-[10px] text-slate-400 truncate">{sup.address}</div>
+                          )}
                         </div>
                         <div>
                           {hasOwed ? (
@@ -393,8 +410,11 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   ) : (
                     paginatedSuppliers.map((sup) => (
                       <tr key={sup.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
-                          {sup.companyName}
+                        <td className="py-2.5 px-3.5">
+                          <div className="font-bold text-slate-900">{sup.companyName}</div>
+                          <span className="inline-block text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 mt-0.5 font-semibold">
+                            NUIT: {sup.nuit || '—'}
+                          </span>
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-700 font-medium">
                           {sup.contactPerson}
@@ -405,8 +425,18 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           </span>
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-600">
-                          <div>{sup.phone}</div>
+                          <div className="font-medium text-slate-800">{sup.phone}</div>
                           {sup.email && <div className="text-[10px] text-slate-400">{sup.email}</div>}
+                          {sup.address ? (
+                            <div className="text-[10px] text-slate-500 truncate max-w-xs flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{sup.address}</span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {language === 'pt' ? 'Sem endereço' : 'No address'}
+                            </div>
+                          )}
                         </td>
                         <td className="py-2.5 px-3.5">
                           {sup.amountOwed > 0 ? (
@@ -488,9 +518,20 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <div className="truncate pr-2">
                         <span className="font-semibold text-slate-900">{po.supplierName}</span>
-                        <span className="text-[10px] text-slate-400 ml-1">
-                          (Delivery: {po.expectedDeliveryDate || 'N/A'})
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-500 mt-0.5">
+                          {po.supplierPhone && <span>{po.supplierPhone}</span>}
+                          {po.supplierNuit && (
+                            <span className="font-mono bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 font-semibold">
+                              NUIT: {po.supplierNuit}
+                            </span>
+                          )}
+                          <span className="text-slate-400">• (Delivery: {po.expectedDeliveryDate || 'N/A'})</span>
+                        </div>
+                        {po.supplierAddress && (
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {po.supplierAddress}
+                          </div>
+                        )}
                       </div>
                       <span className="font-bold text-emerald-700 text-sm">
                         {profile.currency}{po.total.toLocaleString()}
@@ -569,9 +610,21 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           #{po.poNumber}
                         </td>
                         <td className="py-2.5 px-3.5 font-medium text-slate-900">
-                          {po.supplierName}
-                          {po.supplierPhone && (
-                            <span className="text-slate-400 text-[10px] ml-1">({po.supplierPhone})</span>
+                          <div className="font-bold text-slate-900">{po.supplierName}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            {po.supplierPhone && (
+                              <span className="text-slate-500 text-[10px]">{po.supplierPhone}</span>
+                            )}
+                            {po.supplierNuit && (
+                              <span className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">
+                                NUIT: {po.supplierNuit}
+                              </span>
+                            )}
+                          </div>
+                          {po.supplierAddress && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-xs mt-0.5">
+                              {po.supplierAddress}
+                            </div>
                           )}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">

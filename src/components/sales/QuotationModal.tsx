@@ -21,6 +21,7 @@ import {
   ChevronUp,
   Layers,
   User,
+  MapPin,
 } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
@@ -59,6 +60,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const [customerId, setCustomerId] = useState<string>('walk-in');
   const [customCustomerName, setCustomCustomerName] = useState<string>('');
   const [customCustomerPhone, setCustomCustomerPhone] = useState<string>('');
+  const [customCustomerNuit, setCustomCustomerNuit] = useState<string>('');
+  const [customCustomerAddress, setCustomCustomerAddress] = useState<string>('');
+  const [showWalkInDetails, setShowWalkInDetails] = useState<boolean>(false);
   const [selectedItems, setSelectedItems] = useState<
     Array<{
       productId: string;
@@ -203,6 +207,25 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const taxAmount = (taxableAmount * taxPercent) / 100;
   const grandTotal = Math.max(0, subtotal - discountAmount + taxAmount);
 
+  const currentCustomerName =
+    customerId === 'new'
+      ? customCustomerName.trim() || (language === 'pt' ? 'Novo Cliente' : 'New Customer')
+      : customerId === 'walk-in'
+      ? (language === 'pt' ? 'Cliente Balcão' : 'Walk-in Customer')
+      : customers.find((c) => c.id === customerId)?.name || (language === 'pt' ? 'Cliente' : 'Customer');
+
+  const currentCustomerNuit =
+    customCustomerNuit.trim() ||
+    (customerId !== 'new' && customerId !== 'walk-in'
+      ? customers.find((c) => c.id === customerId)?.nuit || ''
+      : '');
+
+  const currentCustomerAddress =
+    customCustomerAddress.trim() ||
+    (customerId !== 'new' && customerId !== 'walk-in'
+      ? customers.find((c) => c.id === customerId)?.address || ''
+      : '');
+
   // Submit Quotation
   const handleSaveQuotation = (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,6 +238,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     let finalCustomerName = language === 'pt' ? 'Cliente Balcão' : 'Walk-in Customer';
     let finalCustomerId = '';
     let customerPhone: string | undefined = undefined;
+    let customerNuit: string | undefined = undefined;
+    let customerAddress: string | undefined = undefined;
 
     if (customerId === 'new') {
       if (!customCustomerName.trim()) {
@@ -223,13 +248,20 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       }
       finalCustomerName = customCustomerName.trim();
       customerPhone = customCustomerPhone.trim() || undefined;
+      customerNuit = customCustomerNuit.trim() || undefined;
+      customerAddress = customCustomerAddress.trim() || undefined;
     } else if (customerId !== 'walk-in') {
       const existing = customers.find((c) => c.id === customerId);
       if (existing) {
         finalCustomerId = existing.id;
         finalCustomerName = existing.name;
         customerPhone = existing.phone;
+        customerNuit = customCustomerNuit.trim() || existing.nuit || undefined;
+        customerAddress = customCustomerAddress.trim() || existing.address || undefined;
       }
+    } else {
+      customerNuit = customCustomerNuit.trim() || undefined;
+      customerAddress = customCustomerAddress.trim() || undefined;
     }
 
     const validUntilDate = new Date();
@@ -258,6 +290,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       customerId: finalCustomerId,
       customerName: finalCustomerName,
       customerPhone,
+      customerNuit,
+      customerAddress,
       items: quoteItems,
       subtotal,
       discountAmount,
@@ -276,6 +310,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     setCustomerId('walk-in');
     setCustomCustomerName('');
     setCustomCustomerPhone('');
+    setCustomCustomerNuit('');
+    setCustomCustomerAddress('');
+    setShowWalkInDetails(false);
     setSelectedItems([]);
     setProductSearchTerm('');
     setErrorMsg('');
@@ -386,7 +423,24 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
           { align: 'right' }
         );
       }
-      y += 8;
+      y += 5;
+
+      const hasQuoteNuit = Boolean(quotationToView.customerNuit);
+      const hasQuoteAddress = Boolean(quotationToView.customerAddress);
+
+      if (hasQuoteNuit) {
+        doc.text(`NUIT: ${quotationToView.customerNuit}`, margin, y);
+        y += 5;
+      }
+      if (hasQuoteAddress) {
+        doc.text(
+          `${language === 'pt' ? 'Endereço' : 'Address'}: ${quotationToView.customerAddress}`,
+          margin,
+          y
+        );
+        y += 5;
+      }
+      y += 2;
 
       doc.setFillColor(248, 250, 252);
       doc.rect(margin, y, pageWidth - margin * 2, 7, 'F');
@@ -619,21 +673,32 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
               </div>
 
               {/* Customer Info */}
-              <div className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
-                    <User className="w-3.5 h-3.5" />
+              <div className="p-3.5 bg-white border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 shadow-2xs">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 sm:mt-0">
+                    <User className="w-4 h-4" />
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 truncate">
                       {quotationToView.customerName}
                     </div>
-                    <div className="text-[11px] text-slate-500">
-                      {quotationToView.customerPhone || (language === 'pt' ? 'Sem telefone' : 'No phone')}
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 mt-0.5">
+                      {quotationToView.customerPhone && (
+                        <span>{quotationToView.customerPhone}</span>
+                      )}
+                      <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 font-semibold">
+                        NUIT: {quotationToView.customerNuit || '—'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {quotationToView.customerAddress || (language === 'pt' ? 'Endereço não informado' : 'No address provided')}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="text-right text-[11px] text-slate-500">
+                <div className="text-left sm:text-right text-[11px] text-slate-500 shrink-0 border-t sm:border-t-0 pt-1.5 sm:pt-0 border-slate-100">
                   {language === 'pt' ? 'Preparado por' : 'Prepared by'}:{' '}
                   <span className="font-bold text-slate-700">
                     {quotationToView.cashierName || currentUser?.name || profile.ownerName || profile.businessName || profile.name || ''}
@@ -815,7 +880,20 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                     </label>
                     <select
                       value={customerId}
-                      onChange={(e) => setCustomerId(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomerId(val);
+                        if (val !== 'walk-in' && val !== 'new') {
+                          const existing = customers.find((c) => c.id === val);
+                          if (existing) {
+                            setCustomCustomerNuit(existing.nuit || '');
+                            setCustomCustomerAddress(existing.address || '');
+                          }
+                        } else if (val === 'walk-in') {
+                          setCustomCustomerNuit('');
+                          setCustomCustomerAddress('');
+                        }
+                      }}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     >
                       <option value="walk-in">{t.walkInCustomer}</option>
@@ -830,22 +908,94 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                     </select>
 
                     {customerId === 'new' && (
-                      <div className="mt-1.5 grid grid-cols-2 gap-1 animate-fadeIn">
-                        <input
-                          type="text"
-                          placeholder={language === 'pt' ? 'Nome do Cliente *' : 'Client Name *'}
-                          value={customCustomerName}
-                          onChange={(e) => setCustomCustomerName(e.target.value)}
-                          className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1"
-                          required
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Phone"
-                          value={customCustomerPhone}
-                          onChange={(e) => setCustomCustomerPhone(e.target.value)}
-                          className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1"
-                        />
+                      <div className="mt-1.5 space-y-1 animate-fadeIn">
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'Nome do Cliente *' : 'Client Name *'}
+                            value={customCustomerName}
+                            onChange={(e) => setCustomCustomerName(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none font-semibold text-slate-900"
+                            required
+                          />
+                          <input
+                            type="tel"
+                            placeholder={t.phoneLabel}
+                            value={customCustomerPhone}
+                            onChange={(e) => setCustomCustomerPhone(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'NUIT do Cliente' : 'Customer NUIT'}
+                            value={customCustomerNuit}
+                            onChange={(e) => setCustomCustomerNuit(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none font-mono"
+                          />
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'Endereço do Cliente' : 'Customer Address'}
+                            value={customCustomerAddress}
+                            onChange={(e) => setCustomCustomerAddress(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {customerId !== 'walk-in' && customerId !== 'new' && (() => {
+                      const selCust = customers.find((c) => c.id === customerId);
+                      if (!selCust) return null;
+                      return (
+                        <div className="mt-1.5 p-2 rounded-lg bg-indigo-50/70 border border-indigo-100 text-[10px] text-indigo-900 space-y-1 animate-fadeIn">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono font-semibold">
+                              NUIT: {customCustomerNuit || selCust.nuit || '—'}
+                            </span>
+                            <span className="truncate text-indigo-700">
+                              {customCustomerAddress || selCust.address || (language === 'pt' ? 'Sem endereço' : 'No address')}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 pt-1 border-t border-indigo-100/80">
+                            <input
+                              type="text"
+                              placeholder={language === 'pt' ? 'Editar NUIT' : 'Customer NUIT'}
+                              value={customCustomerNuit}
+                              onChange={(e) => setCustomCustomerNuit(e.target.value)}
+                              className="w-full text-[10px] bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none font-mono"
+                            />
+                            <input
+                              type="text"
+                              placeholder={language === 'pt' ? 'Editar Endereço' : 'Customer Address'}
+                              value={customCustomerAddress}
+                              onChange={(e) => setCustomCustomerAddress(e.target.value)}
+                              className="w-full text-[10px] bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {customerId === 'walk-in' && (
+                      <div className="mt-1.5 space-y-1 animate-fadeIn">
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'NUIT do Cliente' : 'Customer NUIT'}
+                            value={customCustomerNuit}
+                            onChange={(e) => setCustomCustomerNuit(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none font-mono"
+                          />
+                          <input
+                            type="text"
+                            placeholder={language === 'pt' ? 'Endereço do Cliente' : 'Customer Address'}
+                            value={customCustomerAddress}
+                            onChange={(e) => setCustomCustomerAddress(e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1 focus:outline-none"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1239,6 +1389,37 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 }`}
               >
                 <div className="space-y-2.5">
+                  {/* Customer Target Details Card */}
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        {language === 'pt' ? 'Cliente Destinatário' : 'Customer Recipient'}
+                      </span>
+                      {currentCustomerNuit ? (
+                        <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+                          NUIT: {currentCustomerNuit}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">
+                          {language === 'pt' ? 'Sem NUIT' : 'No NUIT'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {currentCustomerName}
+                    </div>
+                    {currentCustomerAddress ? (
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{currentCustomerAddress}</span>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400">
+                        {language === 'pt' ? 'Endereço não informado' : 'No address provided'}
+                      </div>
+                    )}
+                  </div>
+
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                     {language === 'pt' ? 'Condições do Orçamento' : 'Quotation Parameters'}
                   </span>

@@ -19,6 +19,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [nuit, setNuit] = useState('');
   const [address, setAddress] = useState('');
   const [creditLimit, setCreditLimit] = useState<number>(500);
   const [outstandingDebt, setOutstandingDebt] = useState<number>(0);
@@ -29,6 +30,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setName(customerToEdit.name);
       setPhone(customerToEdit.phone);
       setEmail(customerToEdit.email || '');
+      setNuit(customerToEdit.nuit || '');
       setAddress(customerToEdit.address || '');
       setCreditLimit(customerToEdit.creditLimit);
       setOutstandingDebt(customerToEdit.outstandingDebt);
@@ -37,6 +39,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setName('');
       setPhone('');
       setEmail('');
+      setNuit('');
       setAddress('');
       setCreditLimit(500);
       setOutstandingDebt(0);
@@ -55,6 +58,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        nuit: nuit.trim() || undefined,
         address: address.trim() || undefined,
         creditLimit,
         outstandingDebt,
@@ -65,6 +69,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || undefined,
+        nuit: nuit.trim() || undefined,
         address: address.trim() || undefined,
         creditLimit,
         outstandingDebt,
@@ -141,17 +146,32 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
-              {t.storeAddress.replace(' *', '')}
-            </label>
-            <input
-              type="text"
-              placeholder={language === 'pt' ? 'Rua, Bairro, Cidade' : 'Street, Suite / Floor, City'}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                {t.customerNuit}
+              </label>
+              <input
+                type="text"
+                placeholder={language === 'pt' ? 'ex: 400123456' : 'e.g. 400123456'}
+                value={nuit}
+                onChange={(e) => setNuit(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
+                {t.customerAddress}
+              </label>
+              <input
+                type="text"
+                placeholder={language === 'pt' ? 'Rua, Bairro, Cidade' : 'Street, Suite / Floor, City'}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
