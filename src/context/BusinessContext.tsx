@@ -37,9 +37,35 @@ import {
   ApiQuotaStats,
   getApiQuotaStats,
 } from '../services/sheetsDb';
+import {
+  saveProfileToFirestore,
+  saveProductToFirestore,
+  deleteProductFromFirestore,
+  saveSaleToFirestore,
+  deleteSaleFromFirestore,
+  saveQuotationToFirestore,
+  deleteQuotationFromFirestore,
+  savePurchaseOrderToFirestore,
+  deletePurchaseOrderFromFirestore,
+  saveCustomerToFirestore,
+  saveSupplierToFirestore,
+  saveExpenseToFirestore,
+  deleteExpenseFromFirestore,
+  saveEmployeeToFirestore,
+  deleteEmployeeFromFirestore,
+  saveAccountToFirestore,
+  deleteAccountFromFirestore,
+  saveStockMovementToFirestore,
+  subscribeToCollection,
+  subscribeToDocument,
+  seedInitialFirestoreData,
+  COLLECTIONS,
+} from '../services/firebaseDb';
+import { testConnection } from '../services/firebase';
 import { getTranslation, TranslationHelper } from '../translations';
 
 export type SheetsSyncStatus = 'idle' | 'syncing' | 'connected' | 'error' | 'disconnected';
+export type FirebaseSyncStatus = 'connecting' | 'connected' | 'error' | 'disconnected';
 
 interface BusinessContextType {
   profile: BusinessProfile;
@@ -51,7 +77,16 @@ interface BusinessContextType {
   setCurrentRole: (role: UserRole) => void;
   permissions: RolePermissions;
 
-  // Google Sheets Database
+  // Firebase Firestore Main Database
+  firebaseSyncStatus: FirebaseSyncStatus;
+  firebaseLastSyncedAt: string | null;
+  firebaseError: string | null;
+  isFirebaseMainDb: boolean;
+  retryFirebaseConnection: () => Promise<void>;
+  syncAllToFirebaseNow: () => Promise<{ success: boolean; message: string; count?: number }>;
+  backupToSheetsNow: () => Promise<boolean>;
+
+  // Google Sheets Backup Database
   sheetsUrl: string;
   setSheetsUrl: (url: string) => void;
   sheetsSyncStatus: SheetsSyncStatus;
@@ -417,7 +452,92 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     );
   });
 
-  // Sync Strategy & Quota Protection Engine
+  // Firebase Main Database State
+  const [firebaseSyncStatus, setFirebaseSyncStatus] = useState<FirebaseSyncStatus>('connecting');
+  const [firebaseLastSyncedAt, setFirebaseLastSyncedAt] = useState<string | null>(null);
+  const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const isSyncingFromFirestoreRef = useRef<boolean>(false);
+
+  const retryFirebaseConnection = async () => {
+    setFirebaseSyncStatus('connecting');
+    setFirebaseError(null);
+    try {
+      const ok = await testConnection();
+      if (ok) {
+        setFirebaseSyncStatus('connected');
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setFirebaseLastSyncedAt(nowStr);
+      } else {
+        setFirebaseSyncStatus('error');
+        setFirebaseError('Firebase connection check failed.');
+      }
+    } catch (e: any) {
+      setFirebaseSyncStatus('error');
+      setFirebaseError(e.message || 'Error connecting to Firebase');
+    }
+  };
+
+  const syncAllToFirebaseNow = async (): Promise<{ success: boolean; message: string; count?: number }> => {
+    setFirebaseSyncStatus('connecting');
+    setFirebaseError(null);
+    try {
+      let count = 0;
+      await saveProfileToFirestore(profile);
+      count++;
+      for (const p of products) {
+        await saveProductToFirestore(p);
+        count++;
+      }
+      for (const c of customers) {
+        await saveCustomerToFirestore(c);
+        count++;
+      }
+      for (const s of suppliers) {
+        await saveSupplierToFirestore(s);
+        count++;
+      }
+      for (const e of expenses) {
+        await saveExpenseToFirestore(e);
+        count++;
+      }
+      for (const emp of employees) {
+        await saveEmployeeToFirestore(emp);
+        count++;
+      }
+      for (const a of accounts) {
+        await saveAccountToFirestore(a);
+        count++;
+      }
+      for (const q of quotations) {
+        await saveQuotationToFirestore(q);
+        count++;
+      }
+      for (const sa of sales) {
+        await saveSaleToFirestore(sa);
+        count++;
+      }
+      for (const po of purchaseOrders) {
+        await savePurchaseOrderToFirestore(po);
+        count++;
+      }
+      for (const sm of stockMovements) {
+        await saveStockMovementToFirestore(sm);
+        count++;
+      }
+      setFirebaseSyncStatus('connected');
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setFirebaseLastSyncedAt(nowStr);
+      return {
+        success: true,
+        message: `Successfully synced ${count} items across all collections to Firebase Firestore.`,
+        count,
+      };
+    } catch (err: any) {
+      setFirebaseSyncStatus('error');
+      setFirebaseError(err.message || 'Failed to sync all records to Firebase');
+      return { success: false, message: err.message || 'Failed to sync to Firebase' };
+    }
+  };
   const [syncStrategy, setSyncStrategyState] = useState<'smart_batch' | 'interval_15m' | 'manual'>(() => {
     return (localStorage.getItem(`${STORAGE_PREFIX}syncStrategy`) as any) || 'smart_batch';
   });
@@ -659,17 +779,232 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  // Watch state changes and trigger smart debounced queuing (skip initial load or sheets pull)
+  // Watch state changes and trigger smart debounced queuing (skip initial load or sheets/firestore pulls)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    if (isSyncingFromSheetsRef.current || isSyncOperationActiveRef.current) {
+    if (isSyncingFromSheetsRef.current || isSyncOperationActiveRef.current || isSyncingFromFirestoreRef.current) {
       return;
     }
     markPendingChange();
   }, [products, sales, customers, suppliers, expenses, employees, accounts, stockMovements, profile, quotations, purchaseOrders]);
+
+  // Real-time synchronization with Firebase Firestore (Primary Database)
+  useEffect(() => {
+    let unsubs: (() => void)[] = [];
+    let isMounted = true;
+
+    async function initFirestore() {
+      try {
+        setFirebaseSyncStatus('connecting');
+        const isOnline = await testConnection();
+        if (!isOnline && isMounted) {
+          setFirebaseSyncStatus('error');
+          setFirebaseError('Firebase connection check failed. Client may be offline.');
+        }
+
+        // Real-time listener for Business Profile
+        const unsubProfile = subscribeToDocument<BusinessProfile>(
+          COLLECTIONS.BUSINESS_PROFILE,
+          'main',
+          (docData) => {
+            if (!isMounted || !docData) return;
+            isSyncingFromFirestoreRef.current = true;
+            setProfile((prev) => ({ ...prev, ...docData }));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        );
+        unsubs.push(unsubProfile);
+
+        // Real-time listener for Products
+        const unsubProducts = subscribeToCollection<Product>(
+          COLLECTIONS.PRODUCTS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setProducts(items.map(normalizeProduct));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubProducts);
+
+        // Real-time listener for Sales
+        const unsubSales = subscribeToCollection<Sale>(
+          COLLECTIONS.SALES,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setSales(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubSales);
+
+        // Real-time listener for Quotations
+        const unsubQuotations = subscribeToCollection<Quotation>(
+          COLLECTIONS.QUOTATIONS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setQuotations(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubQuotations);
+
+        // Real-time listener for Purchase Orders
+        const unsubPOs = subscribeToCollection<PurchaseOrder>(
+          COLLECTIONS.PURCHASE_ORDERS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setPurchaseOrders(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubPOs);
+
+        // Real-time listener for Customers
+        const unsubCustomers = subscribeToCollection<Customer>(
+          COLLECTIONS.CUSTOMERS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setCustomers(items);
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubCustomers);
+
+        // Real-time listener for Suppliers
+        const unsubSuppliers = subscribeToCollection<Supplier>(
+          COLLECTIONS.SUPPLIERS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setSuppliers(items);
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubSuppliers);
+
+        // Real-time listener for Expenses
+        const unsubExpenses = subscribeToCollection<Expense>(
+          COLLECTIONS.EXPENSES,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setExpenses(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubExpenses);
+
+        // Real-time listener for Employees
+        const unsubEmployees = subscribeToCollection<Employee>(
+          COLLECTIONS.EMPLOYEES,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setEmployees(items);
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubEmployees);
+
+        // Real-time listener for Accounts
+        const unsubAccounts = subscribeToCollection<Account>(
+          COLLECTIONS.ACCOUNTS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setAccounts(items);
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubAccounts);
+
+        // Real-time listener for Stock Movements
+        const unsubStock = subscribeToCollection<StockMovement>(
+          COLLECTIONS.STOCK_MOVEMENTS,
+          (items) => {
+            if (!isMounted) return;
+            if (items.length > 0) {
+              isSyncingFromFirestoreRef.current = true;
+              setStockMovements(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setTimeout(() => {
+                isSyncingFromFirestoreRef.current = false;
+              }, 300);
+            }
+          }
+        );
+        unsubs.push(unsubStock);
+
+        if (isMounted) {
+          setFirebaseSyncStatus('connected');
+          setFirebaseError(null);
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setFirebaseLastSyncedAt(nowStr);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setFirebaseSyncStatus('error');
+          setFirebaseError(err.message || 'Failed to connect to Firebase database');
+        }
+      }
+    }
+
+    initFirestore();
+
+    return () => {
+      isMounted = false;
+      unsubs.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {}
+      });
+    };
+  }, []);
 
   // Periodic interval sync when scheduled mode is chosen (syncs at most every 15 min if there are changes)
   useEffect(() => {
@@ -790,7 +1125,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLanguageState(updates.language);
       localStorage.setItem(`${STORAGE_PREFIX}language`, updates.language);
     }
-    setProfile((prev) => ({ ...prev, ...updates }));
+    setProfile((prev) => {
+      const updated = { ...prev, ...updates };
+      saveProfileToFirestore(updated).catch(console.error);
+      return updated;
+    });
   };
 
   // Helper for today's date checking (same year, month, day)
@@ -946,6 +1285,38 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     setSales((prev) => [newSale, ...prev]);
+
+    // Save to Firebase Firestore (Main Database)
+    saveSaleToFirestore(newSale).catch(console.error);
+    updatedProducts.forEach((p) => {
+      if (saleData.items.some((i) => i.productId === p.id)) {
+        saveProductToFirestore(p).catch(console.error);
+      }
+    });
+    newStockMovements.forEach((sm) => {
+      saveStockMovementToFirestore(sm).catch(console.error);
+    });
+    if (newSale.amountPaid > 0) {
+      let targetAccountId = 'acc-cash';
+      if (newSale.paymentMethod === 'bank_transfer') targetAccountId = 'acc-bank';
+      else if (newSale.paymentMethod === 'pos_card') targetAccountId = 'acc-pos';
+      const targetAcc = accounts.find((a) => a.id === targetAccountId);
+      if (targetAcc) {
+        saveAccountToFirestore({ ...targetAcc, balance: targetAcc.balance + newSale.amountPaid }).catch(console.error);
+      }
+    }
+    if (newSale.customerId) {
+      const cust = customers.find((c) => c.id === newSale.customerId);
+      if (cust) {
+        saveCustomerToFirestore({
+          ...cust,
+          outstandingDebt: newSale.balanceDue > 0 ? cust.outstandingDebt + newSale.balanceDue : cust.outstandingDebt,
+          totalSpent: cust.totalSpent + newSale.total,
+          lastPurchaseDate: timestamp,
+        }).catch(console.error);
+      }
+    }
+
     return newSale;
   };
 
@@ -998,6 +1369,35 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     setSales((prev) => prev.filter((s) => s.id !== saleId));
+
+    // Delete and sync reversals to Firestore
+    deleteSaleFromFirestore(saleId).catch(console.error);
+    products.forEach((prod) => {
+      const item = saleToDelete.items.find((i) => i.productId === prod.id);
+      if (item) {
+        saveProductToFirestore({ ...prod, stock: prod.stock + item.quantity }).catch(console.error);
+      }
+    });
+    if (saleToDelete.amountPaid > 0) {
+      let targetAccountId = 'acc-cash';
+      if (saleToDelete.paymentMethod === 'bank_transfer') targetAccountId = 'acc-bank';
+      else if (saleToDelete.paymentMethod === 'pos_card') targetAccountId = 'acc-pos';
+      const targetAcc = accounts.find((a) => a.id === targetAccountId);
+      if (targetAcc) {
+        saveAccountToFirestore({ ...targetAcc, balance: Math.max(0, targetAcc.balance - saleToDelete.amountPaid) }).catch(console.error);
+      }
+    }
+    if (saleToDelete.balanceDue > 0 && saleToDelete.customerId) {
+      const cust = customers.find((c) => c.id === saleToDelete.customerId);
+      if (cust) {
+        saveCustomerToFirestore({
+          ...cust,
+          outstandingDebt: Math.max(0, cust.outstandingDebt - saleToDelete.balanceDue),
+          totalSpent: Math.max(0, cust.totalSpent - saleToDelete.total),
+        }).catch(console.error);
+      }
+    }
+
     return true;
   };
 
@@ -1013,17 +1413,26 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       timestamp: new Date().toISOString(),
     };
     setQuotations((prev) => [newQuotation, ...prev]);
+    saveQuotationToFirestore(newQuotation).catch(console.error);
     return newQuotation;
   };
 
   const updateQuotation = (id: string, updates: Partial<Quotation>) => {
     setQuotations((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
+      prev.map((q) => {
+        if (q.id === id) {
+          const updated = { ...q, ...updates };
+          saveQuotationToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return q;
+      })
     );
   };
 
   const deleteQuotation = (id: string): boolean => {
     setQuotations((prev) => prev.filter((q) => q.id !== id));
+    deleteQuotationFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1082,17 +1491,26 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       timestamp: new Date().toISOString(),
     };
     setPurchaseOrders((prev) => [newPO, ...prev]);
+    savePurchaseOrderToFirestore(newPO).catch(console.error);
     return newPO;
   };
 
   const updatePurchaseOrder = (id: string, updates: Partial<PurchaseOrder>) => {
     setPurchaseOrders((prev) =>
-      prev.map((po) => (po.id === id ? { ...po, ...updates } : po))
+      prev.map((po) => {
+        if (po.id === id) {
+          const updated = { ...po, ...updates };
+          savePurchaseOrderToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return po;
+      })
     );
   };
 
   const deletePurchaseOrder = (id: string): boolean => {
     setPurchaseOrders((prev) => prev.filter((po) => po.id !== id));
+    deletePurchaseOrderFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1120,38 +1538,41 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     if (newProduct.stock > 0) {
-      setStockMovements((prev) => [
-        {
-          id: `sm-init-${Date.now()}`,
-          productId: newProduct.id,
-          productName: newProduct.name,
-          type: 'adjustment',
-          quantity: newProduct.stock,
-          previousStock: 0,
-          newStock: newProduct.stock,
-          reason: 'Initial stock entry',
-          timestamp,
-          performedBy: 'Staff',
-        },
-        ...prev,
-      ]);
+      const initSm: StockMovement = {
+        id: `sm-init-${Date.now()}`,
+        productId: newProduct.id,
+        productName: newProduct.name,
+        type: 'adjustment',
+        quantity: newProduct.stock,
+        previousStock: 0,
+        newStock: newProduct.stock,
+        reason: 'Initial stock entry',
+        timestamp,
+        performedBy: 'Staff',
+      };
+      setStockMovements((prev) => [initSm, ...prev]);
+      saveStockMovementToFirestore(initSm).catch(console.error);
     }
 
     setProducts((prev) => [newProduct, ...prev]);
+    saveProductToFirestore(newProduct).catch(console.error);
     return newProduct;
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
     setProducts((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? normalizeProduct({
-              ...p,
-              ...updates,
-              updatedAt: new Date().toISOString(),
-            })
-          : p
-      )
+      prev.map((p) => {
+        if (p.id === id) {
+          const updated = normalizeProduct({
+            ...p,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          });
+          saveProductToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
@@ -1168,47 +1589,48 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const newStock = target.stock + quantity;
     const effectiveCost = unitCost !== undefined ? unitCost : target.costPrice;
 
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === productId
-          ? {
-              ...p,
-              stock: newStock,
-              costPrice: effectiveCost,
-              updatedAt: timestamp,
-            }
-          : p
-      )
-    );
+    const updatedProd = {
+      ...target,
+      stock: newStock,
+      costPrice: effectiveCost,
+      updatedAt: timestamp,
+    };
 
-    setStockMovements((prev) => [
-      {
-        id: `sm-restock-${Date.now()}`,
-        productId,
-        productName: target.name,
-        type: 'purchase',
-        quantity,
-        previousStock: target.stock,
-        newStock,
-        reason: `Restocked ${quantity} ${target.unit}`,
-        timestamp,
-        performedBy: 'Staff',
-      },
-      ...prev,
-    ]);
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? updatedProd : p))
+    );
+    saveProductToFirestore(updatedProd).catch(console.error);
+
+    const newSm: StockMovement = {
+      id: `sm-restock-${Date.now()}`,
+      productId,
+      productName: target.name,
+      type: 'purchase',
+      quantity,
+      previousStock: target.stock,
+      newStock,
+      reason: `Restocked ${quantity} ${target.unit}`,
+      timestamp,
+      performedBy: 'Staff',
+    };
+    setStockMovements((prev) => [newSm, ...prev]);
+    saveStockMovementToFirestore(newSm).catch(console.error);
 
     if (supplierId) {
       const costTotal = quantity * effectiveCost;
       setSuppliers((prev) =>
-        prev.map((s) =>
-          s.id === supplierId
-            ? {
-                ...s,
-                totalPurchased: s.totalPurchased + costTotal,
-                lastOrderDate: timestamp,
-              }
-            : s
-        )
+        prev.map((s) => {
+          if (s.id === supplierId) {
+            const updatedSup = {
+              ...s,
+              totalPurchased: s.totalPurchased + costTotal,
+              lastOrderDate: timestamp,
+            };
+            saveSupplierToFirestore(updatedSup).catch(console.error);
+            return updatedSup;
+          }
+          return s;
+        })
       );
     }
   };
@@ -1216,6 +1638,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteProduct = (id: string): boolean => {
     if (!permissions.canManageInventory) return false;
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    deleteProductFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1226,11 +1649,21 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       totalSpent: 0,
     };
     setCustomers((prev) => [newCustomer, ...prev]);
+    saveCustomerToFirestore(newCustomer).catch(console.error);
     return newCustomer;
   };
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
-    setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, ...updates };
+          saveCustomerToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return c;
+      })
+    );
   };
 
   const recordDebtPayment = (
@@ -1243,22 +1676,33 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!customer) return;
 
     const actualAmount = Math.min(amount, customer.outstandingDebt);
+    const updatedDebt = Math.max(0, customer.outstandingDebt - actualAmount);
+
     setCustomers((prev) =>
       prev.map((c) =>
         c.id === customerId
           ? {
               ...c,
-              outstandingDebt: Math.max(0, c.outstandingDebt - actualAmount),
+              outstandingDebt: updatedDebt,
             }
           : c
       )
     );
+    saveCustomerToFirestore({
+      ...customer,
+      outstandingDebt: updatedDebt,
+    }).catch(console.error);
 
     // Increase target account
     setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === accountId ? { ...acc, balance: acc.balance + actualAmount } : acc
-      )
+      prev.map((acc) => {
+        if (acc.id === accountId) {
+          const updatedAcc = { ...acc, balance: acc.balance + actualAmount };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
+        }
+        return acc;
+      })
     );
 
     setAlerts((prev) => [
@@ -1283,11 +1727,21 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       totalPurchased: 0,
     };
     setSuppliers((prev) => [newSupplier, ...prev]);
+    saveSupplierToFirestore(newSupplier).catch(console.error);
     return newSupplier;
   };
 
   const updateSupplier = (id: string, updates: Partial<Supplier>) => {
-    setSuppliers((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+    setSuppliers((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s, ...updates };
+          saveSupplierToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return s;
+      })
+    );
   };
 
   const paySupplier = (
@@ -1299,22 +1753,32 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const supplier = suppliers.find((s) => s.id === supplierId);
     if (!supplier) return;
 
+    const updatedOwed = Math.max(0, supplier.amountOwed - amount);
     setSuppliers((prev) =>
       prev.map((s) =>
         s.id === supplierId
           ? {
               ...s,
-              amountOwed: Math.max(0, s.amountOwed - amount),
+              amountOwed: updatedOwed,
             }
           : s
       )
     );
+    saveSupplierToFirestore({
+      ...supplier,
+      amountOwed: updatedOwed,
+    }).catch(console.error);
 
     // Deduct from account
     setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === accountId ? { ...acc, balance: Math.max(0, acc.balance - amount) } : acc
-      )
+      prev.map((acc) => {
+        if (acc.id === accountId) {
+          const updatedAcc = { ...acc, balance: Math.max(0, acc.balance - amount) };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
+        }
+        return acc;
+      })
     );
 
     // Log as expense
@@ -1330,6 +1794,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       notes: notes || 'Settlement of supplier balance',
     };
     setExpenses((prev) => [newExpense, ...prev]);
+    saveExpenseToFirestore(newExpense).catch(console.error);
   };
 
   const addExpense = (expenseData: Omit<Expense, 'id' | 'timestamp'>): Expense => {
@@ -1341,11 +1806,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Deduct from account
     setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === newExpense.accountId
-          ? { ...acc, balance: Math.max(0, acc.balance - newExpense.amount) }
-          : acc
-      )
+      prev.map((acc) => {
+        if (acc.id === newExpense.accountId) {
+          const updatedAcc = { ...acc, balance: Math.max(0, acc.balance - newExpense.amount) };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
+        }
+        return acc;
+      })
     );
 
     // Alert if expense is unusually large (> $500)
@@ -1366,6 +1834,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     setExpenses((prev) => [newExpense, ...prev]);
+    saveExpenseToFirestore(newExpense).catch(console.error);
     return newExpense;
   };
 
@@ -1376,12 +1845,18 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Refund to account
     setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === exp.accountId ? { ...acc, balance: acc.balance + exp.amount } : acc
-      )
+      prev.map((acc) => {
+        if (acc.id === exp.accountId) {
+          const updatedAcc = { ...acc, balance: acc.balance + exp.amount };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
+        }
+        return acc;
+      })
     );
 
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+    deleteExpenseFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1396,10 +1871,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAccounts((prev) =>
       prev.map((acc) => {
         if (acc.id === fromAccountId) {
-          return { ...acc, balance: Math.max(0, acc.balance - amount) };
+          const updatedAcc = { ...acc, balance: Math.max(0, acc.balance - amount) };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
         }
         if (acc.id === toAccountId) {
-          return { ...acc, balance: acc.balance + amount };
+          const updatedAcc = { ...acc, balance: acc.balance + amount };
+          saveAccountToFirestore(updatedAcc).catch(console.error);
+          return updatedAcc;
         }
         return acc;
       })
@@ -1426,18 +1905,27 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     };
     setAccounts((prev) => [...prev, newAccount]);
+    saveAccountToFirestore(newAccount).catch(console.error);
     return newAccount;
   };
 
   const updateAccount = (id: string, updates: Partial<Account>) => {
     setAccounts((prev) =>
-      prev.map((acc) => (acc.id === id ? { ...acc, ...updates } : acc))
+      prev.map((acc) => {
+        if (acc.id === id) {
+          const updated = { ...acc, ...updates };
+          saveAccountToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return acc;
+      })
     );
   };
 
   const deleteAccount = (id: string): boolean => {
     if (accounts.length <= 1) return false;
     setAccounts((prev) => prev.filter((acc) => acc.id !== id));
+    deleteAccountFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1462,6 +1950,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       customPermissions: employeeData.customPermissions || {},
     };
     setEmployees((prev) => [...prev, newEmp]);
+    saveEmployeeToFirestore(newEmp).catch(console.error);
     return newEmp;
   };
 
@@ -1510,6 +1999,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               localStorage.setItem(`${STORAGE_PREFIX}role`, sanitizedUpdates.role);
             }
           }
+          saveEmployeeToFirestore(updated).catch(console.error);
           return updated;
         }
         return emp;
@@ -1532,6 +2022,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
     setEmployees((prev) => prev.filter((e) => e.id !== id));
+    deleteEmployeeFromFirestore(id).catch(console.error);
     return true;
   };
 
@@ -1738,11 +2229,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             (emp.attendanceStatus === 'present'
               ? 'off'
               : 'present');
-          return {
+          const updatedEmp = {
             ...emp,
             attendanceStatus: nextStatus,
             lastClockIn: nextStatus === 'present' ? new Date().toISOString() : emp.lastClockIn,
           };
+          saveEmployeeToFirestore(updatedEmp).catch(console.error);
+          return updatedEmp;
         }
         return emp;
       })
@@ -1782,6 +2275,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         currentRole,
         setCurrentRole,
         permissions,
+        // Firebase Firestore Main Database
+        firebaseSyncStatus,
+        firebaseLastSyncedAt,
+        firebaseError,
+        isFirebaseMainDb: true,
+        retryFirebaseConnection,
+        syncAllToFirebaseNow,
+        backupToSheetsNow: pushToSheetsNow,
+        // Google Sheets Backup
         sheetsUrl,
         setSheetsUrl,
         sheetsSyncStatus,

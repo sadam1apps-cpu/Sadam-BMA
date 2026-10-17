@@ -1,0 +1,8 @@
+{
+  "firestore": {
+    "database": "ai-studio-businessmanageme-3137eddd-7c50-4bbd-af00-6af6f4f99d3c",
+    "location": "europe-west1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
