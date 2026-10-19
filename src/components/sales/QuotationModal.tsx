@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
+import { renderPdfLogo } from '../../utils/pdfLogo';
 
 interface QuotationModalProps {
   isOpen: boolean;
@@ -329,7 +330,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   };
 
   // PDF Generation for View Mode
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!quotationToView) return;
     try {
       setIsGeneratingPdf(true);
@@ -339,13 +340,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       let y = profile.logo ? 14 : 22;
 
       // Business Logo
-      if (profile.logo) {
+      if (profile.logo && profile.logo.trim()) {
         try {
-          const logoW = 22;
-          const logoH = 22;
-          doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
-          // Generous margin so logo never touches business info
-          y += logoH + 13;
+          y = await renderPdfLogo(doc, profile.logo, pageWidth, y, 42, 16);
         } catch (e) {
           console.warn('PDF logo render error:', e);
         }
@@ -631,11 +628,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-center gap-4 sm:gap-5 min-w-0">
                     {profile.logo && (
-                      <div className="w-13 h-13 sm:w-16 sm:h-16 rounded-xl bg-white border border-slate-200 p-1.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden mr-1">
+                      <div className="h-12 sm:h-14 max-w-[140px] sm:max-w-[180px] rounded-xl bg-white border border-slate-200 p-1.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden mr-1">
                         <img
                           src={profile.logo}
                           alt={profile.businessName || profile.name || ''}
-                          className="w-full h-full object-contain"
+                          className="h-full w-auto max-w-full object-contain"
                         />
                       </div>
                     )}

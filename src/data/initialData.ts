@@ -18,16 +18,19 @@ import {
  * Google Sheets Database.
  */
 
+export const DEFAULT_BRAND_LOGO = '/assets/stech-logo.png';
+
 export const initialBusinessProfile: BusinessProfile = {
-  name: '',
-  businessName: '',
-  tagline: '',
-  currency: '$',
-  phone: '',
-  email: '',
-  address: '',
-  taxRate: 0,
+  name: 'STech GLOBAL LDA',
+  businessName: 'STech GLOBAL LDA',
+  tagline: 'CONNECTING TECHNOLOGY, EMPOWERING FUTURES',
+  currency: 'MZN ',
+  phone: '+258 842879960/843936212',
+  email: 'stechglobalbusiness@gmail.com',
+  address: 'Pemba Mozambique',
+  taxRate: 16,
   invoiceFooter: 'Thank you for your business!',
+  logo: DEFAULT_BRAND_LOGO,
 };
 
 export const defaultAccounts: Account[] = [

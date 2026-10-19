@@ -87,17 +87,22 @@ export const SettingsView: React.FC = () => {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        let finalLogo = result;
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           const isPng = file.type === 'image/png' || result.includes('image/png');
-          const dataUrl = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.9);
-          setLogo(dataUrl);
-        } else {
-          setLogo(result);
+          finalLogo = canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.9);
         }
+        setLogo(finalLogo);
+        updateProfile({ logo: finalLogo });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
       };
       img.onerror = () => {
         setLogo(result);
+        updateProfile({ logo: result });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
       };
       img.src = result;
     };
@@ -327,6 +332,9 @@ export const SettingsView: React.FC = () => {
                         onClick={() => {
                           setLogo('');
                           setLogoError(null);
+                          updateProfile({ logo: '' });
+                          setSaved(true);
+                          setTimeout(() => setSaved(false), 2000);
                         }}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
                         title={language === 'pt' ? 'Remover Logótipo' : 'Remove Logo'}

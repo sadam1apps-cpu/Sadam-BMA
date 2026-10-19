@@ -34,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
     permissions,
     alerts,
     sheetsSyncStatus,
+    firebaseSyncStatus,
     setActiveNavTab,
     currentUser,
     logout,
@@ -84,11 +85,11 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Left: Business Brand */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 sm:flex-initial max-w-[45%] sm:max-w-none">
             {profile.logo ? (
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-700/80 p-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden mr-0.5">
+              <div className="h-7 sm:h-8 max-w-[110px] sm:max-w-[140px] rounded-lg bg-white/95 border border-slate-700/80 px-1.5 py-0.5 flex items-center justify-center shrink-0 shadow-xs overflow-hidden mr-0.5">
                 <img
                   src={profile.logo}
                   alt={profile.businessName || profile.name || ''}
-                  className="w-full h-full object-contain"
+                  className="h-full w-auto max-w-full object-contain"
                 />
               </div>
             ) : (
@@ -268,53 +269,53 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={() => setActiveNavTab('settings')}
                 className={`hidden md:inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 ${
-                  sheetsSyncStatus === 'syncing'
-                    ? 'bg-amber-950/60 border-amber-500/50 text-amber-300 animate-pulse'
-                    : sheetsSyncStatus === 'connected'
+                  firebaseSyncStatus === 'connected'
                     ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60'
-                    : sheetsSyncStatus === 'error'
+                    : firebaseSyncStatus === 'connecting' || sheetsSyncStatus === 'syncing'
+                    ? 'bg-amber-950/60 border-amber-500/50 text-amber-300 animate-pulse'
+                    : firebaseSyncStatus === 'error' && sheetsSyncStatus === 'error'
                     ? 'bg-rose-950/60 border-rose-500/40 text-rose-300 hover:bg-rose-900/60'
                     : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                 }`}
                 title={
-                  sheetsSyncStatus === 'syncing'
-                    ? t.syncing
-                    : `${t.cloudDatabase} - ${sheetsSyncStatus === 'connected' ? t.connected : sheetsSyncStatus === 'error' ? t.syncError : t.unlinked}`
+                  firebaseSyncStatus === 'connected'
+                    ? `${language === 'pt' ? 'Firebase Principal: Conectado & Ativo' : 'Firebase Main DB: Connected & Live'}${sheetsSyncStatus === 'connected' ? (language === 'pt' ? ' • Backup Folha: Ativo' : ' • Sheets Backup: Active') : ''}`
+                    : firebaseSyncStatus === 'connecting'
+                    ? (language === 'pt' ? 'A sincronizar base de dados...' : 'Syncing database...')
+                    : (language === 'pt' ? 'Base de dados na nuvem' : 'Cloud Database')
                 }
               >
-                {sheetsSyncStatus === 'syncing' ? (
+                {firebaseSyncStatus === 'connecting' || sheetsSyncStatus === 'syncing' ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
                 ) : (
                   <Database
                     className={`w-3.5 h-3.5 shrink-0 ${
-                      sheetsSyncStatus === 'connected'
+                      firebaseSyncStatus === 'connected'
                         ? 'text-emerald-400'
-                        : sheetsSyncStatus === 'error'
+                        : firebaseSyncStatus === 'error'
                         ? 'text-rose-400'
                         : 'text-slate-400'
                     }`}
                   />
                 )}
                 <span>
-                  {sheetsSyncStatus === 'syncing' ? (
-                    t.syncing
+                  {firebaseSyncStatus === 'connecting' ? (
+                    (language === 'pt' ? 'A sincronizar...' : 'Connecting...')
                   ) : (
                     <span className="hidden lg:inline">
-                      {sheetsSyncStatus === 'connected'
-                        ? t.cloudDatabase
-                        : sheetsSyncStatus === 'error'
-                        ? t.syncError
+                      {firebaseSyncStatus === 'connected'
+                        ? 'Firebase DB'
                         : t.cloudDatabase}
                     </span>
                   )}
                 </span>
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    sheetsSyncStatus === 'connected'
+                    firebaseSyncStatus === 'connected'
                       ? 'bg-emerald-400'
-                      : sheetsSyncStatus === 'syncing'
+                      : firebaseSyncStatus === 'connecting'
                       ? 'bg-amber-400'
-                      : sheetsSyncStatus === 'error'
+                      : firebaseSyncStatus === 'error'
                       ? 'bg-rose-400'
                       : 'bg-slate-500'
                   }`}

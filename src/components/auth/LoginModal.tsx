@@ -263,17 +263,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <div className="bg-[#0B1B3D] text-white px-3.5 py-2.5 sm:px-4 sm:py-3 relative overflow-hidden shrink-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0066FF] to-[#00388A] flex items-center justify-center text-white shadow-md shadow-[#0052CC]/30 shrink-0 overflow-hidden">
+              <div className="h-8 max-w-[120px] rounded-xl bg-white/95 flex items-center justify-center shadow-md shadow-[#0052CC]/30 shrink-0 overflow-hidden px-1.5 py-0.5 border border-white/20">
                 {isScreenLocked ? (
-                  <Lock className="w-4 h-4 text-white" />
+                  <Lock className="w-4 h-4 text-slate-800" />
                 ) : profile.logo ? (
                   <img
                     src={profile.logo}
                     alt={profile.businessName || profile.name || ''}
-                    className="w-full h-full object-contain p-0.5 bg-white rounded-lg"
+                    className="h-full w-auto max-w-full object-contain"
                   />
                 ) : (
-                  <Store className="w-4 h-4 text-white" />
+                  <Store className="w-4 h-4 text-slate-800" />
                 )}
               </div>
               <div className="min-w-0">

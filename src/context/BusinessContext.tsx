@@ -227,7 +227,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = localStorage.getItem(`${STORAGE_PREFIX}profile`);
     if (saved && !isDemoString(saved)) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (!parsed.logo || !parsed.logo.trim()) {
+          parsed.logo = initialBusinessProfile.logo;
+        }
+        return parsed;
       } catch (e) {}
     }
     return initialBusinessProfile;
@@ -812,7 +816,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           (docData) => {
             if (!isMounted || !docData) return;
             isSyncingFromFirestoreRef.current = true;
-            setProfile((prev) => ({ ...prev, ...docData }));
+            setProfile((prev) => ({
+              ...prev,
+              ...docData,
+              logo: docData.logo && docData.logo.trim() ? docData.logo : (prev.logo || initialBusinessProfile.logo),
+            }));
             setTimeout(() => {
               isSyncingFromFirestoreRef.current = false;
             }, 300);

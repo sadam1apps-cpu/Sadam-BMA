@@ -3,6 +3,7 @@ import { useBusiness } from '../../context/BusinessContext';
 import { Sale } from '../../types';
 import { Printer, Download, X, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { renderPdfLogo } from '../../utils/pdfLogo';
 
 interface InvoiceReceiptModalProps {
   sale: Sale | null;
@@ -57,7 +58,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
   };
 
   // High-fidelity vector PDF generation & download
-  const handleSavePdf = () => {
+  const handleSavePdf = async () => {
     try {
       setIsGeneratingPdf(true);
       setNotice(null);
@@ -76,11 +77,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       // 0. Business Logo (if configured)
       if (profile.logo) {
         try {
-          const logoW = 22;
-          const logoH = 22;
-          doc.addImage(profile.logo, (pageWidth - logoW) / 2, y, logoW, logoH);
-          // Generous vertical margin so logo never touches the business name or details
-          y += logoH + 13;
+          y = await renderPdfLogo(doc, profile.logo, pageWidth, y, 38, 16);
         } catch (e) {
           console.warn('PDF logo render warning:', e);
         }
