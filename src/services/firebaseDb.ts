@@ -1,3 +1,9 @@
+/**
+ * Firebase Firestore Service - Primary Database Integration
+ * Manages collections, real-time listeners, persistent mutations,
+ * and initial seeding for the business management application.
+ */
+
 import {
   collection,
   doc,
@@ -7,12 +13,23 @@ import {
   deleteDoc,
   onSnapshot,
   writeBatch,
+  Unsubscribe,
 } from 'firebase/firestore';
-import {db} from './firebase';
+import { db, handleFirestoreError, OperationType } from './firebase';
+import {
+  Account,
+  BusinessProfile,
+  Customer,
+  Employee,
+  Expense,
+  Product,
+  PurchaseOrder,
+  Quotation,
+  Sale,
+  StockMovement,
+  Supplier,
+} from '../types';
 
-// ─────────────────────────────────────────────────────────────
-// Collection name map (single source of truth)
-// ─────────────────────────────────────────────────────────────
 export const COLLECTIONS = {
   BUSINESS_PROFILE: 'businessProfile',
   PRODUCTS: 'products',
@@ -27,450 +44,386 @@ export const COLLECTIONS = {
   STOCK_MOVEMENTS: 'stockMovements',
 } as const;
 
-export type FirestoreCollectionName =
-  (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
-function stripId<T extends {id?: string}>(item: T): Record<string, any> {
-  const {id, ...rest} = item as any;
-  return rest;
+export interface FirestoreDatabaseState {
+  profile: BusinessProfile | null;
+  products: Product[];
+  sales: Sale[];
+  quotations: Quotation[];
+  purchaseOrders: PurchaseOrder[];
+  customers: Customer[];
+  suppliers: Supplier[];
+  expenses: Expense[];
+  employees: Employee[];
+  accounts: Account[];
+  stockMovements: StockMovement[];
 }
 
 /**
- * Recursively removes `undefined` values and nulls out problematic fields
- * before writing to Firestore. Defense-in-depth in addition to
- * `ignoreUndefinedProperties: true` on the SDK.
+ * Remove undefined values from an object before saving to Firestore,
+ * as Firestore throws when encounter undefined fields.
  */
-function cleanForFirestore(value: any): any {
-  if (value === undefined) return null;
-  if (value === null) return null;
-  if (Array.isArray(value)) {
-    return value
-      .map((v) => cleanForFirestore(v))
-      .filter((v) => v !== undefined);
-  }
-  if (value instanceof Date) return value;
-  if (typeof value === 'object') {
-    const out: Record<string, any> = {};
-    for (const key in value) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        const cleaned = cleanForFirestore(value[key]);
-        if (cleaned !== undefined) {
-          out[key] = cleaned;
-        }
+export function cleanForFirestore<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val === undefined) {
+      // If field is barcode, normalize to empty string so it is valid in Firestore schema
+      if (key === 'barcode') {
+        result[key] = '';
       }
+      continue;
     }
-    return out;
+    if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+      result[key] = cleanForFirestore(val);
+    } else {
+      result[key] = val;
+    }
   }
-  return value;
+  return result;
 }
 
-/** Strip the id field then sanitize for Firestore. */
-function prepareForFirestore<T extends {id?: string}>(
-  item: T,
-): Record<string, any> {
-  return cleanForFirestore(stripId(item));
-}
-
-// ─────────────────────────────────────────────────────────────
-// Real-time listeners
-// ─────────────────────────────────────────────────────────────
-export function subscribeToCollection<T extends {id: string}>(
-  name: FirestoreCollectionName,
-  cb: (items: T[]) => void,
-): () => void {
-  const colRef = collection(db, name);
-  return onSnapshot(
-    colRef,
-    (snap) => {
-      const items = snap.docs.map((d) => ({id: d.id, ...d.data()})) as T[];
-      cb(items);
-    },
-    (err) => {
-      console.error(`[subscribeToCollection] ${name} error:`, err);
-    },
-  );
-}
-
-export function subscribeToDocument<T>(
-  name: FirestoreCollectionName,
-  docId: string,
-  cb: (data: T | null) => void,
-): () => void {
-  const docRef = doc(db, name, docId);
-  return onSnapshot(
-    docRef,
-    (snap) => {
-      cb(snap.exists() ? ({...snap.data()} as T) : null);
-    },
-    (err) => {
-      console.error(`[subscribeToDocument] ${name}/${docId} error:`, err);
-    },
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Profile
-// ─────────────────────────────────────────────────────────────
-export async function saveProfileToFirestore(profile: any): Promise<boolean> {
+// ==========================================
+// PROFILE
+// ==========================================
+export async function saveProfileToFirestore(profile: BusinessProfile): Promise<void> {
+  const path = `${COLLECTIONS.BUSINESS_PROFILE}/main`;
   try {
-    await setDoc(
-      doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'),
-      cleanForFirestore(profile),
-      {merge: true},
-    );
-    return true;
-  } catch (e) {
-    console.error('saveProfileToFirestore', e);
-    return false;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Products
-// ─────────────────────────────────────────────────────────────
-export async function saveProductToFirestore(p: {id: string}): Promise<boolean> {
-  try {
-    await setDoc(doc(db, COLLECTIONS.PRODUCTS, p.id), prepareForFirestore(p), {
-      merge: true,
+    const cleaned = cleanForFirestore({
+      ...profile,
+      id: 'main',
+      updatedAt: new Date().toISOString(),
     });
-    return true;
-  } catch (e) {
-    console.error('saveProductToFirestore', e);
-    return false;
+    await setDoc(doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-export async function deleteProductFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// PRODUCTS
+// ==========================================
+export async function saveProductToFirestore(product: Product): Promise<void> {
+  const path = `${COLLECTIONS.PRODUCTS}/${product.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.PRODUCTS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteProductFromFirestore', e);
-    return false;
+    const safeProduct: Product = {
+      ...product,
+      barcode: product.barcode !== undefined && product.barcode !== null ? String(product.barcode).trim() : '',
+    };
+    const cleaned = cleanForFirestore(safeProduct);
+    await setDoc(doc(db, COLLECTIONS.PRODUCTS, product.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Sales
-// ─────────────────────────────────────────────────────────────
-export async function saveSaleToFirestore(s: {id: string}): Promise<boolean> {
+export async function deleteProductFromFirestore(productId: string): Promise<void> {
+  const path = `${COLLECTIONS.PRODUCTS}/${productId}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.SALES, s.id), prepareForFirestore(s), {
-      merge: true,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveSaleToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.PRODUCTS, productId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteSaleFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// SALES
+// ==========================================
+export async function saveSaleToFirestore(sale: Sale): Promise<void> {
+  const path = `${COLLECTIONS.SALES}/${sale.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.SALES, id));
-    return true;
-  } catch (e) {
-    console.error('deleteSaleFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(sale);
+    await setDoc(doc(db, COLLECTIONS.SALES, sale.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Quotations
-// ─────────────────────────────────────────────────────────────
-export async function saveQuotationToFirestore(q: {id: string}): Promise<boolean> {
+export async function deleteSaleFromFirestore(saleId: string): Promise<void> {
+  const path = `${COLLECTIONS.SALES}/${saleId}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.QUOTATIONS, q.id), prepareForFirestore(q), {
-      merge: true,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveQuotationToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.SALES, saleId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteQuotationFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// QUOTATIONS
+// ==========================================
+export async function saveQuotationToFirestore(quotation: Quotation): Promise<void> {
+  const path = `${COLLECTIONS.QUOTATIONS}/${quotation.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.QUOTATIONS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteQuotationFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(quotation);
+    await setDoc(doc(db, COLLECTIONS.QUOTATIONS, quotation.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Purchase Orders
-// ─────────────────────────────────────────────────────────────
-export async function savePurchaseOrderToFirestore(po: {id: string}): Promise<boolean> {
+export async function deleteQuotationFromFirestore(quotationId: string): Promise<void> {
+  const path = `${COLLECTIONS.QUOTATIONS}/${quotationId}`;
   try {
-    await setDoc(
-      doc(db, COLLECTIONS.PURCHASE_ORDERS, po.id),
-      prepareForFirestore(po),
-      {merge: true},
-    );
-    return true;
-  } catch (e) {
-    console.error('savePurchaseOrderToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.QUOTATIONS, quotationId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deletePurchaseOrderFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// PURCHASE ORDERS
+// ==========================================
+export async function savePurchaseOrderToFirestore(po: PurchaseOrder): Promise<void> {
+  const path = `${COLLECTIONS.PURCHASE_ORDERS}/${po.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.PURCHASE_ORDERS, id));
-    return true;
-  } catch (e) {
-    console.error('deletePurchaseOrderFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(po);
+    await setDoc(doc(db, COLLECTIONS.PURCHASE_ORDERS, po.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Customers
-// ─────────────────────────────────────────────────────────────
-export async function saveCustomerToFirestore(c: {id: string}): Promise<boolean> {
+export async function deletePurchaseOrderFromFirestore(poId: string): Promise<void> {
+  const path = `${COLLECTIONS.PURCHASE_ORDERS}/${poId}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.CUSTOMERS, c.id), prepareForFirestore(c), {
-      merge: true,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveCustomerToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.PURCHASE_ORDERS, poId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteCustomerFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// CUSTOMERS
+// ==========================================
+export async function saveCustomerToFirestore(customer: Customer): Promise<void> {
+  const path = `${COLLECTIONS.CUSTOMERS}/${customer.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.CUSTOMERS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteCustomerFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(customer);
+    await setDoc(doc(db, COLLECTIONS.CUSTOMERS, customer.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Suppliers
-// ─────────────────────────────────────────────────────────────
-export async function saveSupplierToFirestore(s: {id: string}): Promise<boolean> {
+// ==========================================
+// SUPPLIERS
+// ==========================================
+export async function saveSupplierToFirestore(supplier: Supplier): Promise<void> {
+  const path = `${COLLECTIONS.SUPPLIERS}/${supplier.id}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.SUPPLIERS, s.id), prepareForFirestore(s), {
-      merge: true,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveSupplierToFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(supplier);
+    await setDoc(doc(db, COLLECTIONS.SUPPLIERS, supplier.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-export async function deleteSupplierFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// EXPENSES
+// ==========================================
+export async function saveExpenseToFirestore(expense: Expense): Promise<void> {
+  const path = `${COLLECTIONS.EXPENSES}/${expense.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.SUPPLIERS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteSupplierFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(expense);
+    await setDoc(doc(db, COLLECTIONS.EXPENSES, expense.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Expenses
-// ─────────────────────────────────────────────────────────────
-export async function saveExpenseToFirestore(e: {id: string}): Promise<boolean> {
+export async function deleteExpenseFromFirestore(expenseId: string): Promise<void> {
+  const path = `${COLLECTIONS.EXPENSES}/${expenseId}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.EXPENSES, e.id), prepareForFirestore(e), {
-      merge: true,
-    });
-    return true;
-  } catch (err) {
-    console.error('saveExpenseToFirestore', err);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.EXPENSES, expenseId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteExpenseFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// EMPLOYEES
+// ==========================================
+export async function saveEmployeeToFirestore(employee: Employee): Promise<void> {
+  const path = `${COLLECTIONS.EMPLOYEES}/${employee.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.EXPENSES, id));
-    return true;
-  } catch (e) {
-    console.error('deleteExpenseFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(employee);
+    await setDoc(doc(db, COLLECTIONS.EMPLOYEES, employee.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Employees
-// ─────────────────────────────────────────────────────────────
-export async function saveEmployeeToFirestore(emp: {id: string}): Promise<boolean> {
+export async function deleteEmployeeFromFirestore(employeeId: string): Promise<void> {
+  const path = `${COLLECTIONS.EMPLOYEES}/${employeeId}`;
   try {
-    await setDoc(
-      doc(db, COLLECTIONS.EMPLOYEES, emp.id),
-      prepareForFirestore(emp),
-      {merge: true},
-    );
-    return true;
-  } catch (e) {
-    console.error('saveEmployeeToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.EMPLOYEES, employeeId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteEmployeeFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// ACCOUNTS
+// ==========================================
+export async function saveAccountToFirestore(account: Account): Promise<void> {
+  const path = `${COLLECTIONS.ACCOUNTS}/${account.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.EMPLOYEES, id));
-    return true;
-  } catch (e) {
-    console.error('deleteEmployeeFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(account);
+    await setDoc(doc(db, COLLECTIONS.ACCOUNTS, account.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Accounts
-// ─────────────────────────────────────────────────────────────
-export async function saveAccountToFirestore(a: {id: string}): Promise<boolean> {
+export async function deleteAccountFromFirestore(accountId: string): Promise<void> {
+  const path = `${COLLECTIONS.ACCOUNTS}/${accountId}`;
   try {
-    await setDoc(doc(db, COLLECTIONS.ACCOUNTS, a.id), prepareForFirestore(a), {
-      merge: true,
-    });
-    return true;
-  } catch (e) {
-    console.error('saveAccountToFirestore', e);
-    return false;
+    await deleteDoc(doc(db, COLLECTIONS.ACCOUNTS, accountId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
-export async function deleteAccountFromFirestore(id: string): Promise<boolean> {
+// ==========================================
+// STOCK MOVEMENTS
+// ==========================================
+export async function saveStockMovementToFirestore(movement: StockMovement): Promise<void> {
+  const path = `${COLLECTIONS.STOCK_MOVEMENTS}/${movement.id}`;
   try {
-    await deleteDoc(doc(db, COLLECTIONS.ACCOUNTS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteAccountFromFirestore', e);
-    return false;
+    const cleaned = cleanForFirestore(movement);
+    await setDoc(doc(db, COLLECTIONS.STOCK_MOVEMENTS, movement.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Stock Movements
-// ─────────────────────────────────────────────────────────────
-export async function saveStockMovementToFirestore(sm: {id: string}): Promise<boolean> {
+// ==========================================
+// BATCH SEEDING INITIAL DATABASE
+// ==========================================
+export async function seedInitialFirestoreData(data: {
+  profile: BusinessProfile;
+  products: Product[];
+  sales: Sale[];
+  quotations?: Quotation[];
+  purchaseOrders?: PurchaseOrder[];
+  customers: Customer[];
+  suppliers: Supplier[];
+  expenses: Expense[];
+  employees: Employee[];
+  accounts: Account[];
+  stockMovements: StockMovement[];
+}): Promise<void> {
   try {
-    await setDoc(
-      doc(db, COLLECTIONS.STOCK_MOVEMENTS, sm.id),
-      prepareForFirestore(sm),
-      {merge: true},
-    );
-    return true;
-  } catch (e) {
-    console.error('saveStockMovementToFirestore', e);
-    return false;
-  }
-}
+    // Check if products collection has any docs
+    const existingProducts = await getDocs(collection(db, COLLECTIONS.PRODUCTS));
+    if (!existingProducts.empty) {
+      console.log('Firestore already contains data, skipping auto-seed.');
+      return;
+    }
 
-export async function deleteStockMovementFromFirestore(id: string): Promise<boolean> {
-  try {
-    await deleteDoc(doc(db, COLLECTIONS.STOCK_MOVEMENTS, id));
-    return true;
-  } catch (e) {
-    console.error('deleteStockMovementFromFirestore', e);
-    return false;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// One-shot fetch (kept for compatibility)
-// ─────────────────────────────────────────────────────────────
-export async function fetchCollection<T = any>(
-  name: FirestoreCollectionName,
-): Promise<T[]> {
-  try {
-    const snap = await getDocs(collection(db, name));
-    return snap.docs.map((d) => ({id: d.id, ...d.data()})) as T[];
-  } catch (e) {
-    console.error(`fetchCollection(${name})`, e);
-    return [];
-  }
-}
-
-export async function fetchDocument<T = any>(
-  name: FirestoreCollectionName,
-  docId: string,
-): Promise<T | null> {
-  try {
-    const snap = await getDoc(doc(db, name, docId));
-    return snap.exists() ? ({...snap.data()} as T) : null;
-  } catch (e) {
-    console.error(`fetchDocument(${name}/${docId})`, e);
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Seeding (used on first run)
-// ─────────────────────────────────────────────────────────────
-export async function seedInitialFirestoreData(payload: {
-  profile?: any;
-  products?: any[];
-  customers?: any[];
-  suppliers?: any[];
-  employees?: any[];
-  accounts?: any[];
-}): Promise<boolean> {
-  try {
+    console.log('Seeding initial business data to Firestore main database...');
     const batch = writeBatch(db);
-    if (payload.profile) {
-      batch.set(
-        doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'),
-        cleanForFirestore(payload.profile),
-        {merge: true},
-      );
+
+    // Profile
+    const profileRef = doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main');
+    batch.set(profileRef, cleanForFirestore({ ...data.profile, id: 'main', updatedAt: new Date().toISOString() }));
+
+    // Products
+    for (const p of data.products) {
+      batch.set(doc(db, COLLECTIONS.PRODUCTS, p.id), cleanForFirestore(p));
     }
-    (payload.products || []).forEach((p) =>
-      batch.set(
-        doc(db, COLLECTIONS.PRODUCTS, p.id),
-        prepareForFirestore(p),
-        {merge: true},
-      ),
-    );
-    (payload.customers || []).forEach((c) =>
-      batch.set(
-        doc(db, COLLECTIONS.CUSTOMERS, c.id),
-        prepareForFirestore(c),
-        {merge: true},
-      ),
-    );
-    (payload.suppliers || []).forEach((s) =>
-      batch.set(
-        doc(db, COLLECTIONS.SUPPLIERS, s.id),
-        prepareForFirestore(s),
-        {merge: true},
-      ),
-    );
-    (payload.employees || []).forEach((e) =>
-      batch.set(
-        doc(db, COLLECTIONS.EMPLOYEES, e.id),
-        prepareForFirestore(e),
-        {merge: true},
-      ),
-    );
-    (payload.accounts || []).forEach((a) =>
-      batch.set(
-        doc(db, COLLECTIONS.ACCOUNTS, a.id),
-        prepareForFirestore(a),
-        {merge: true},
-      ),
-    );
+
+    // Accounts
+    for (const a of data.accounts) {
+      batch.set(doc(db, COLLECTIONS.ACCOUNTS, a.id), cleanForFirestore(a));
+    }
+
+    // Employees
+    for (const emp of data.employees) {
+      batch.set(doc(db, COLLECTIONS.EMPLOYEES, emp.id), cleanForFirestore(emp));
+    }
+
+    // Customers
+    for (const c of data.customers) {
+      batch.set(doc(db, COLLECTIONS.CUSTOMERS, c.id), cleanForFirestore(c));
+    }
+
+    // Suppliers
+    for (const s of data.suppliers) {
+      batch.set(doc(db, COLLECTIONS.SUPPLIERS, s.id), cleanForFirestore(s));
+    }
+
+    // Expenses
+    for (const exp of data.expenses) {
+      batch.set(doc(db, COLLECTIONS.EXPENSES, exp.id), cleanForFirestore(exp));
+    }
+
+    // Sales
+    for (const sale of data.sales) {
+      batch.set(doc(db, COLLECTIONS.SALES, sale.id), cleanForFirestore(sale));
+    }
+
+    // Stock movements
+    for (const sm of data.stockMovements) {
+      batch.set(doc(db, COLLECTIONS.STOCK_MOVEMENTS, sm.id), cleanForFirestore(sm));
+    }
+
     await batch.commit();
-    return true;
-  } catch (e) {
-    console.error('seedInitialFirestoreData', e);
-    return false;
+    console.log('Successfully seeded initial data to Firestore database.');
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'batch-seed');
   }
+}
+
+/**
+ * Fetch all documents in a collection once
+ */
+export async function fetchCollection<T>(collectionName: string): Promise<T[]> {
+  try {
+    const snap = await getDocs(collection(db, collectionName));
+    return snap.docs.map((d) => d.data() as T);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, collectionName);
+  }
+}
+
+/**
+ * Real-time collection listener adhering to error callback standards
+ */
+export function subscribeToCollection<T>(
+  collectionName: string,
+  onUpdate: (items: T[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, collectionName),
+    (snapshot) => {
+      const items = snapshot.docs.map((docSnap) => docSnap.data() as T);
+      onUpdate(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, collectionName);
+    }
+  );
+}
+
+/**
+ * Real-time single document listener (e.g. for businessProfile/main)
+ */
+export function subscribeToDocument<T>(
+  collectionName: string,
+  docId: string,
+  onUpdate: (data: T | null) => void
+): Unsubscribe {
+  const path = `${collectionName}/${docId}`;
+  return onSnapshot(
+    doc(db, collectionName, docId),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        onUpdate(docSnap.data() as T);
+      } else {
+        onUpdate(null);
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
 }

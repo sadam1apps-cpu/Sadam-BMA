@@ -1,55 +1,85 @@
-import {initializeApp, getApps, getApp} from 'firebase/app';
-import {
-  initializeFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  getDocFromServer,
-  serverTimestamp,
-} from 'firebase/firestore';
-import {getAuth, GoogleAuthProvider} from 'firebase/auth';
-import {getStorage} from 'firebase/storage';
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-const firebaseConfig = {
-  projectId: 'gen-lang-client-0889196823',
-  appId: '1:188511733207:web:6879f05305083ff1af7792',
-  apiKey: 'AIzaSyCeetJKv4lUli1j7llv1uijJrvrPixqbqQ',
-  authDomain: 'gen-lang-client-0889196823.firebaseapp.com',
-  storageBucket: 'gen-lang-client-0889196823.firebasestorage.app',
-  messagingSenderId: '188511733207',
-  oAuthClientId:
-    '188511733207-9eri6jt7dcnk230igqdcql5uji5j7b50.apps.googleusercontent.com',
-};
+// Initialize Firebase App
+export const app = initializeApp(firebaseConfig);
 
-const FIRESTORE_DATABASE_ID =
-  'ai-studio-businessmanageme-3137eddd-7c50-4bbd-af00-6af6f4f99d3c';
-
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-export const db = initializeFirestore(
-  app,
-  {ignoreUndefinedProperties: true},
-  FIRESTORE_DATABASE_ID,
-);
+// CRITICAL: Must specify firestoreDatabaseId for custom provisioned databases
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth(app);
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+/**
+ * Standard Firestore error handler conforming strictly to security requirements.
+ */
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+/**
+ * Connection validator per skill instructions
+ */
 export async function testConnection(): Promise<boolean> {
   try {
-    const testRef = doc(db, 'test', 'connection');
-    await setDoc(
-      testRef,
-      {lastCheck: new Date().toISOString(), ping: serverTimestamp()},
-      {merge: true},
-    );
-    const snap = await getDocFromServer(testRef);
-    return snap.exists();
-  } catch (e) {
-    console.error('[firebase] testConnection failed:', e);
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error('Please check your Firebase configuration: client is offline');
+    }
     return false;
   }
 }
 
-export default app;
+// testConnection is called during app initialization (BusinessContext) and manual check ping
