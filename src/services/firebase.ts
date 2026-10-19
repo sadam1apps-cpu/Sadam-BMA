@@ -1,9 +1,10 @@
 import {initializeApp, getApps, getApp} from 'firebase/app';
 import {
-  getFirestore,
+  initializeFirestore,
   doc,
   setDoc,
   getDoc,
+  getDocFromServer,
   serverTimestamp,
 } from 'firebase/firestore';
 import {getAuth, GoogleAuthProvider} from 'firebase/auth';
@@ -25,24 +26,25 @@ const FIRESTORE_DATABASE_ID =
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(app, FIRESTORE_DATABASE_ID);
+export const db = initializeFirestore(
+  app,
+  {ignoreUndefinedProperties: true},
+  FIRESTORE_DATABASE_ID,
+);
+
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
-/**
- * Health check: writes + reads a heartbeat doc.
- * Returns true if Firestore is reachable.
- */
 export async function testConnection(): Promise<boolean> {
   try {
-    const testRef = doc(db, 'test', 'health');
+    const testRef = doc(db, 'test', 'connection');
     await setDoc(
       testRef,
       {lastCheck: new Date().toISOString(), ping: serverTimestamp()},
       {merge: true},
     );
-    const snap = await getDoc(testRef);
+    const snap = await getDocFromServer(testRef);
     return snap.exists();
   } catch (e) {
     console.error('[firebase] testConnection failed:', e);

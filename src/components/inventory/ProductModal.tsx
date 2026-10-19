@@ -66,7 +66,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       updateProduct(productToEdit.id, {
         name: name.trim(),
         sku: sku.trim(),
-        barcode: barcode.trim() || undefined,
+        barcode: barcode.trim(),
         category,
         costPrice,
         sellingPrice,
@@ -78,7 +78,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       addProduct({
         name: name.trim(),
         sku: sku.trim(),
-        barcode: barcode.trim() || undefined,
+        barcode: barcode.trim(),
         category,
         costPrice,
         sellingPrice,

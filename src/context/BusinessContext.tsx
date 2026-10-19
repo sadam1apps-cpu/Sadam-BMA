@@ -296,7 +296,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     stock: typeof p.stock === 'number' ? p.stock : parseFloat(p.stock) || 0,
     minStockAlert: typeof p.minStockAlert === 'number' ? p.minStockAlert : parseFloat(p.minStockAlert) || 0,
     unit: p.unit !== undefined && p.unit !== null ? String(p.unit) : 'pcs',
-    barcode: p.barcode !== undefined && p.barcode !== null && String(p.barcode).trim() !== '' ? String(p.barcode).trim() : undefined,
+    barcode: p.barcode !== undefined && p.barcode !== null ? String(p.barcode).trim() : '',
     updatedAt: p.updatedAt || new Date().toISOString(),
   });
 

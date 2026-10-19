@@ -38,6 +38,42 @@ function stripId<T extends {id?: string}>(item: T): Record<string, any> {
   return rest;
 }
 
+/**
+ * Recursively removes `undefined` values and nulls out problematic fields
+ * before writing to Firestore. Defense-in-depth in addition to
+ * `ignoreUndefinedProperties: true` on the SDK.
+ */
+function cleanForFirestore(value: any): any {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => cleanForFirestore(v))
+      .filter((v) => v !== undefined);
+  }
+  if (value instanceof Date) return value;
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const cleaned = cleanForFirestore(value[key]);
+        if (cleaned !== undefined) {
+          out[key] = cleaned;
+        }
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Strip the id field then sanitize for Firestore. */
+function prepareForFirestore<T extends {id?: string}>(
+  item: T,
+): Record<string, any> {
+  return cleanForFirestore(stripId(item));
+}
+
 // ─────────────────────────────────────────────────────────────
 // Real-time listeners
 // ─────────────────────────────────────────────────────────────
@@ -80,9 +116,11 @@ export function subscribeToDocument<T>(
 // ─────────────────────────────────────────────────────────────
 export async function saveProfileToFirestore(profile: any): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'), profile, {
-      merge: true,
-    });
+    await setDoc(
+      doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'),
+      cleanForFirestore(profile),
+      {merge: true},
+    );
     return true;
   } catch (e) {
     console.error('saveProfileToFirestore', e);
@@ -95,7 +133,9 @@ export async function saveProfileToFirestore(profile: any): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────
 export async function saveProductToFirestore(p: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.PRODUCTS, p.id), stripId(p), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.PRODUCTS, p.id), prepareForFirestore(p), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveProductToFirestore', e);
@@ -118,7 +158,9 @@ export async function deleteProductFromFirestore(id: string): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────
 export async function saveSaleToFirestore(s: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.SALES, s.id), stripId(s), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.SALES, s.id), prepareForFirestore(s), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveSaleToFirestore', e);
@@ -141,7 +183,9 @@ export async function deleteSaleFromFirestore(id: string): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────
 export async function saveQuotationToFirestore(q: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.QUOTATIONS, q.id), stripId(q), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.QUOTATIONS, q.id), prepareForFirestore(q), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveQuotationToFirestore', e);
@@ -164,9 +208,11 @@ export async function deleteQuotationFromFirestore(id: string): Promise<boolean>
 // ─────────────────────────────────────────────────────────────
 export async function savePurchaseOrderToFirestore(po: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.PURCHASE_ORDERS, po.id), stripId(po), {
-      merge: true,
-    });
+    await setDoc(
+      doc(db, COLLECTIONS.PURCHASE_ORDERS, po.id),
+      prepareForFirestore(po),
+      {merge: true},
+    );
     return true;
   } catch (e) {
     console.error('savePurchaseOrderToFirestore', e);
@@ -189,7 +235,9 @@ export async function deletePurchaseOrderFromFirestore(id: string): Promise<bool
 // ─────────────────────────────────────────────────────────────
 export async function saveCustomerToFirestore(c: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.CUSTOMERS, c.id), stripId(c), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.CUSTOMERS, c.id), prepareForFirestore(c), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveCustomerToFirestore', e);
@@ -212,7 +260,9 @@ export async function deleteCustomerFromFirestore(id: string): Promise<boolean> 
 // ─────────────────────────────────────────────────────────────
 export async function saveSupplierToFirestore(s: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.SUPPLIERS, s.id), stripId(s), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.SUPPLIERS, s.id), prepareForFirestore(s), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveSupplierToFirestore', e);
@@ -235,7 +285,9 @@ export async function deleteSupplierFromFirestore(id: string): Promise<boolean> 
 // ─────────────────────────────────────────────────────────────
 export async function saveExpenseToFirestore(e: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.EXPENSES, e.id), stripId(e), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.EXPENSES, e.id), prepareForFirestore(e), {
+      merge: true,
+    });
     return true;
   } catch (err) {
     console.error('saveExpenseToFirestore', err);
@@ -258,9 +310,11 @@ export async function deleteExpenseFromFirestore(id: string): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────
 export async function saveEmployeeToFirestore(emp: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.EMPLOYEES, emp.id), stripId(emp), {
-      merge: true,
-    });
+    await setDoc(
+      doc(db, COLLECTIONS.EMPLOYEES, emp.id),
+      prepareForFirestore(emp),
+      {merge: true},
+    );
     return true;
   } catch (e) {
     console.error('saveEmployeeToFirestore', e);
@@ -283,7 +337,9 @@ export async function deleteEmployeeFromFirestore(id: string): Promise<boolean> 
 // ─────────────────────────────────────────────────────────────
 export async function saveAccountToFirestore(a: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.ACCOUNTS, a.id), stripId(a), {merge: true});
+    await setDoc(doc(db, COLLECTIONS.ACCOUNTS, a.id), prepareForFirestore(a), {
+      merge: true,
+    });
     return true;
   } catch (e) {
     console.error('saveAccountToFirestore', e);
@@ -306,9 +362,11 @@ export async function deleteAccountFromFirestore(id: string): Promise<boolean> {
 // ─────────────────────────────────────────────────────────────
 export async function saveStockMovementToFirestore(sm: {id: string}): Promise<boolean> {
   try {
-    await setDoc(doc(db, COLLECTIONS.STOCK_MOVEMENTS, sm.id), stripId(sm), {
-      merge: true,
-    });
+    await setDoc(
+      doc(db, COLLECTIONS.STOCK_MOVEMENTS, sm.id),
+      prepareForFirestore(sm),
+      {merge: true},
+    );
     return true;
   } catch (e) {
     console.error('saveStockMovementToFirestore', e);
@@ -370,24 +428,44 @@ export async function seedInitialFirestoreData(payload: {
     if (payload.profile) {
       batch.set(
         doc(db, COLLECTIONS.BUSINESS_PROFILE, 'main'),
-        payload.profile,
+        cleanForFirestore(payload.profile),
         {merge: true},
       );
     }
     (payload.products || []).forEach((p) =>
-      batch.set(doc(db, COLLECTIONS.PRODUCTS, p.id), stripId(p), {merge: true}),
+      batch.set(
+        doc(db, COLLECTIONS.PRODUCTS, p.id),
+        prepareForFirestore(p),
+        {merge: true},
+      ),
     );
     (payload.customers || []).forEach((c) =>
-      batch.set(doc(db, COLLECTIONS.CUSTOMERS, c.id), stripId(c), {merge: true}),
+      batch.set(
+        doc(db, COLLECTIONS.CUSTOMERS, c.id),
+        prepareForFirestore(c),
+        {merge: true},
+      ),
     );
     (payload.suppliers || []).forEach((s) =>
-      batch.set(doc(db, COLLECTIONS.SUPPLIERS, s.id), stripId(s), {merge: true}),
+      batch.set(
+        doc(db, COLLECTIONS.SUPPLIERS, s.id),
+        prepareForFirestore(s),
+        {merge: true},
+      ),
     );
     (payload.employees || []).forEach((e) =>
-      batch.set(doc(db, COLLECTIONS.EMPLOYEES, e.id), stripId(e), {merge: true}),
+      batch.set(
+        doc(db, COLLECTIONS.EMPLOYEES, e.id),
+        prepareForFirestore(e),
+        {merge: true},
+      ),
     );
     (payload.accounts || []).forEach((a) =>
-      batch.set(doc(db, COLLECTIONS.ACCOUNTS, a.id), stripId(a), {merge: true}),
+      batch.set(
+        doc(db, COLLECTIONS.ACCOUNTS, a.id),
+        prepareForFirestore(a),
+        {merge: true},
+      ),
     );
     await batch.commit();
     return true;
