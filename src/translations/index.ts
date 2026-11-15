@@ -198,6 +198,7 @@ export interface TranslationDictionary {
   fullName: string;
   role: string;
   roleOwner: string;
+  roleTechnicalSupport: string;
   roleManager: string;
   roleCashier: string;
   roleClerk: string;
@@ -222,6 +223,8 @@ export interface TranslationDictionary {
   productName: string;
   sku: string;
   barcode: string;
+  techSpecs: string;
+  techSpecsPlaceholder: string;
   costPrice: string;
   sellingPrice: string;
   stockQty: string;
@@ -512,6 +515,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     fullName: 'Full Name',
     role: 'Assigned Role',
     roleOwner: 'Store Owner (Super Admin)',
+    roleTechnicalSupport: 'Technical Support (Database & IT)',
     roleManager: 'Duty Manager',
     roleCashier: 'POS Cashier',
     roleClerk: 'Inventory Clerk',
@@ -536,6 +540,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     productName: 'Product Name *',
     sku: 'SKU Code',
     barcode: 'Barcode / UPC',
+    techSpecs: 'Technical Specifications',
+    techSpecsPlaceholder: 'e.g. Processor, RAM, Storage, Voltage, Dimensions, Model...',
     costPrice: 'Cost Price',
     sellingPrice: 'Selling Price',
     stockQty: 'Current Stock Quantity',
@@ -825,6 +831,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     fullName: 'Nome Completo',
     role: 'Função Atribuída',
     roleOwner: 'Proprietário (Administrador Geral)',
+    roleTechnicalSupport: 'Suporte Técnico (Base de Dados & TI)',
     roleManager: 'Gerente de Turno',
     roleCashier: 'Operador de Caixa (Vendas)',
     roleClerk: 'Responsável de Stock',
@@ -849,6 +856,8 @@ export const translations: Record<Language, TranslationDictionary> = {
     productName: 'Nome do Artigo / Produto *',
     sku: 'Código SKU',
     barcode: 'Código de Barras / UPC',
+    techSpecs: 'Especificações Técnicas',
+    techSpecsPlaceholder: 'ex: Processador, RAM, Armazenamento, Voltagem, Dimensões...',
     costPrice: 'Preço de Custo',
     sellingPrice: 'Preço de Venda',
     stockQty: 'Quantidade Atual em Stock',

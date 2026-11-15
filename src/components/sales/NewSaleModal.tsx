@@ -102,6 +102,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
           String(p.name || '').toLowerCase().includes(term) ||
           String(p.sku || '').toLowerCase().includes(term) ||
           (p.barcode != null && String(p.barcode).toLowerCase().includes(term)) ||
+          (p.techSpecs != null && String(p.techSpecs).toLowerCase().includes(term)) ||
           String(p.category || '').toLowerCase().includes(term)
       );
     }

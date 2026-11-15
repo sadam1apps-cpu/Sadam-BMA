@@ -16,6 +16,7 @@ import {
   StockMovement,
   Supplier,
 } from '../types';
+import { formatDateOnly } from '../utils/dateFormat';
 
 export interface ColumnDefinition {
   name: string;
@@ -48,6 +49,7 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'minStockAlert', type: 'number', description: 'Low stock reorder threshold', sample: '10', required: true },
       { name: 'unit', type: 'string', description: 'Unit of measure (pcs, kg, box, etc.)', sample: 'pcs', required: true },
       { name: 'barcode', type: 'string', description: 'UPC/EAN barcode for POS scanners', sample: '8901234567890', required: false },
+      { name: 'techSpecs', type: 'string', description: 'Technical specifications and hardware/product details', sample: 'Intel Core i7, 16GB RAM, 512GB SSD', required: false },
       { name: 'updatedAt', type: 'date', description: 'Last modified timestamp (ISO)', sample: '2026-09-21T08:00:00.000Z', required: true },
     ],
   },
@@ -282,7 +284,7 @@ export const SELF_HEALING_APPS_SCRIPT_CODE = `/**
  */
 
 var SCHEMAS = {
-  'Products': ['id', 'name', 'sku', 'category', 'costPrice', 'sellingPrice', 'stock', 'minStockAlert', 'unit', 'barcode', 'updatedAt'],
+  'Products': ['id', 'name', 'sku', 'category', 'costPrice', 'sellingPrice', 'stock', 'minStockAlert', 'unit', 'barcode', 'techSpecs', 'updatedAt'],
   'Sales': ['id', 'invoiceNumber', 'customerId', 'customerName', 'customerPhone', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'amountPaid', 'balanceDue', 'paymentMethod', 'paymentStatus', 'timestamp', 'cashierName', 'notes'],
   'Customers': ['id', 'name', 'phone', 'email', 'address', 'outstandingDebt', 'creditLimit', 'totalSpent', 'lastPurchaseDate', 'notes'],
   'Suppliers': ['id', 'companyName', 'contactPerson', 'phone', 'email', 'address', 'category', 'amountOwed', 'totalPurchased', 'lastOrderDate'],
@@ -448,6 +450,7 @@ function normalizeHeaderAlias(name) {
   if (k === 'discount' || k === 'desconto') return 'discountamount';
   if (k === 'date' || k === 'createdat' || k === 'data') return 'timestamp';
   if (k === 'cashier' || k === 'staff' || k === 'preparadopor') return 'cashiername';
+  if (k === 'specs' || k === 'technicalspecs' || k === 'specifications' || k === 'especificacoes' || k === 'especificacoestecnicas') return 'techspecs';
   return k;
 }
 
@@ -558,7 +561,11 @@ function readSheetData(ss, sheetName, expectedHeaders) {
             record[headerKey] = headerKey === 'items' ? [] : {};
           }
         } else if (cellVal instanceof Date) {
-          record[headerKey] = cellVal.toISOString();
+          if (headerKey === 'validUntil' || headerKey === 'expectedDeliveryDate' || headerKey === 'joinedDate') {
+            record[headerKey] = Utilities.formatDate(cellVal, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+          } else {
+            record[headerKey] = cellVal.toISOString();
+          }
         } else {
           record[headerKey] = cellVal;
         }
@@ -705,6 +712,11 @@ export async function fetchSheetViaGviz(spreadsheetId: string, sheetName: string
           try {
             val = JSON.parse(val);
           } catch (e) {}
+        } else if (
+          (colKey === 'validUntil' || colKey === 'expectedDeliveryDate' || colKey === 'joinedDate') &&
+          val
+        ) {
+          val = formatDateOnly(String(val));
         }
         obj[colKey] = val;
       }

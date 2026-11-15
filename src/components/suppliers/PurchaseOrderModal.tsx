@@ -27,6 +27,7 @@ import {
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
 import { renderPdfLogo } from '../../utils/pdfLogo';
+import { formatDateOnly } from '../../utils/dateFormat';
 
 interface PurchaseOrderModalProps {
   isOpen: boolean;
@@ -126,6 +127,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           String(p.name || '').toLowerCase().includes(term) ||
           String(p.sku || '').toLowerCase().includes(term) ||
           (p.barcode != null && String(p.barcode).toLowerCase().includes(term)) ||
+          (p.techSpecs != null && String(p.techSpecs).toLowerCase().includes(term)) ||
           String(p.category || '').toLowerCase().includes(term)
       );
     }
@@ -400,7 +402,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       );
       doc.text(`${language === 'pt' ? 'Data Emissão' : 'Date'}: ${createdDate}`, margin, y);
       doc.text(
-        `${language === 'pt' ? 'Entrega Prevista' : 'Expected'}: ${poToView.expectedDeliveryDate || 'N/A'}`,
+        `${language === 'pt' ? 'Entrega Prevista' : 'Expected'}: ${formatDateOnly(poToView.expectedDeliveryDate, 'N/A')}`,
         pageWidth - margin,
         y,
         { align: 'right' }
@@ -654,7 +656,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
                     {language === 'pt' ? 'Entrega prevista' : 'Expected Delivery'}:{' '}
-                    <strong className="text-slate-700">{poToView.expectedDeliveryDate || 'N/A'}</strong>
+                    <strong className="text-slate-700">{formatDateOnly(poToView.expectedDeliveryDate, 'N/A')}</strong>
                   </p>
                 </div>
               </div>

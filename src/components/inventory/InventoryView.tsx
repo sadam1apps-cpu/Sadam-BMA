@@ -60,6 +60,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       String(p.name || '').toLowerCase().includes(term) ||
       String(p.sku || '').toLowerCase().includes(term) ||
       (p.barcode != null && String(p.barcode).toLowerCase().includes(term)) ||
+      (p.techSpecs != null && String(p.techSpecs).toLowerCase().includes(term)) ||
       String(p.id || '').toLowerCase().includes(term);
 
     const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
@@ -425,6 +426,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           <span className="text-[10px] text-slate-400 font-mono">
                             {prod.sku}{prod.barcode ? ` • Barcode: ${prod.barcode}` : ''} • {prod.category}
                           </span>
+                          {prod.techSpecs && (
+                            <span
+                              className="text-[10px] text-slate-600 block truncate mt-0.5"
+                              title={prod.techSpecs}
+                            >
+                              {prod.techSpecs}
+                            </span>
+                          )}
                         </div>
                         <div className="shrink-0">
                           {isOutOfStock ? (
@@ -529,6 +538,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             <div className="text-[10px] text-slate-500 font-mono">
                               {prod.sku}{prod.barcode ? ` • Barcode: ${prod.barcode}` : ''}
                             </div>
+                            {prod.techSpecs && (
+                              <div
+                                className="text-[11px] text-slate-600 mt-0.5 line-clamp-2 max-w-xs whitespace-pre-line"
+                                title={prod.techSpecs}
+                              >
+                                {prod.techSpecs}
+                              </div>
+                            )}
                           </td>
 
                           <td className="py-2.5 px-3.5 text-slate-600">

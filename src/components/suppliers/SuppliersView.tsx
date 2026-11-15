@@ -19,6 +19,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
+import { formatDateOnly } from '../../utils/dateFormat';
 
 interface SuppliersViewProps {
   onOpenNewSupplier: () => void;
@@ -525,7 +526,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                               NUIT: {po.supplierNuit}
                             </span>
                           )}
-                          <span className="text-slate-400">• (Delivery: {po.expectedDeliveryDate || 'N/A'})</span>
+                          <span className="text-slate-400">• (Delivery: {formatDateOnly(po.expectedDeliveryDate, 'N/A')})</span>
                         </div>
                         {po.supplierAddress && (
                           <div className="text-[10px] text-slate-400 truncate mt-0.5">
@@ -634,7 +635,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           })}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-600 whitespace-nowrap">
-                          {po.expectedDeliveryDate || 'N/A'}
+                          {formatDateOnly(po.expectedDeliveryDate, 'N/A')}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-600">
                           {po.items.length} {po.items.length === 1 ? 'item' : 'items'}

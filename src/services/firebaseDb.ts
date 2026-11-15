@@ -16,6 +16,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
+import { formatDateOnly } from '../utils/dateFormat';
 import {
   Account,
   BusinessProfile,
@@ -66,8 +67,8 @@ export function cleanForFirestore<T extends Record<string, any>>(obj: T): T {
   const result: any = {};
   for (const [key, val] of Object.entries(obj)) {
     if (val === undefined) {
-      // If field is barcode, normalize to empty string so it is valid in Firestore schema
-      if (key === 'barcode') {
+      // If field is barcode or techSpecs, normalize to empty string so it is valid in Firestore schema
+      if (key === 'barcode' || key === 'techSpecs') {
         result[key] = '';
       }
       continue;
@@ -107,6 +108,7 @@ export async function saveProductToFirestore(product: Product): Promise<void> {
     const safeProduct: Product = {
       ...product,
       barcode: product.barcode !== undefined && product.barcode !== null ? String(product.barcode).trim() : '',
+      techSpecs: product.techSpecs !== undefined && product.techSpecs !== null ? String(product.techSpecs).trim() : '',
     };
     const cleaned = cleanForFirestore(safeProduct);
     await setDoc(doc(db, COLLECTIONS.PRODUCTS, product.id), cleaned);
@@ -152,7 +154,10 @@ export async function deleteSaleFromFirestore(saleId: string): Promise<void> {
 export async function saveQuotationToFirestore(quotation: Quotation): Promise<void> {
   const path = `${COLLECTIONS.QUOTATIONS}/${quotation.id}`;
   try {
-    const cleaned = cleanForFirestore(quotation);
+    const cleaned = cleanForFirestore({
+      ...quotation,
+      validUntil: formatDateOnly(quotation.validUntil),
+    });
     await setDoc(doc(db, COLLECTIONS.QUOTATIONS, quotation.id), cleaned);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -174,7 +179,10 @@ export async function deleteQuotationFromFirestore(quotationId: string): Promise
 export async function savePurchaseOrderToFirestore(po: PurchaseOrder): Promise<void> {
   const path = `${COLLECTIONS.PURCHASE_ORDERS}/${po.id}`;
   try {
-    const cleaned = cleanForFirestore(po);
+    const cleaned = cleanForFirestore({
+      ...po,
+      expectedDeliveryDate: po.expectedDeliveryDate ? formatDateOnly(po.expectedDeliveryDate) : '',
+    });
     await setDoc(doc(db, COLLECTIONS.PURCHASE_ORDERS, po.id), cleaned);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -244,7 +252,10 @@ export async function deleteExpenseFromFirestore(expenseId: string): Promise<voi
 export async function saveEmployeeToFirestore(employee: Employee): Promise<void> {
   const path = `${COLLECTIONS.EMPLOYEES}/${employee.id}`;
   try {
-    const cleaned = cleanForFirestore(employee);
+    const cleaned = cleanForFirestore({
+      ...employee,
+      joinedDate: formatDateOnly(employee.joinedDate),
+    });
     await setDoc(doc(db, COLLECTIONS.EMPLOYEES, employee.id), cleaned);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

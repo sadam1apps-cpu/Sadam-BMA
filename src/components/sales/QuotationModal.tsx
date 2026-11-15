@@ -26,6 +26,7 @@ import {
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
 import { renderPdfLogo } from '../../utils/pdfLogo';
+import { formatDateOnly } from '../../utils/dateFormat';
 
 interface QuotationModalProps {
   isOpen: boolean;
@@ -113,6 +114,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
           String(p.name || '').toLowerCase().includes(term) ||
           String(p.sku || '').toLowerCase().includes(term) ||
           (p.barcode != null && String(p.barcode).toLowerCase().includes(term)) ||
+          (p.techSpecs != null && String(p.techSpecs).toLowerCase().includes(term)) ||
           String(p.category || '').toLowerCase().includes(term)
       );
     }
@@ -400,7 +402,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       );
       doc.text(`${language === 'pt' ? 'Data Emissão' : 'Date'}: ${createdDate}`, margin, y);
       doc.text(
-        `${language === 'pt' ? 'Válido até' : 'Valid Until'}: ${quotationToView.validUntil}`,
+        `${language === 'pt' ? 'Válido até' : 'Valid Until'}: ${formatDateOnly(quotationToView.validUntil)}`,
         pageWidth - margin,
         y,
         { align: 'right' }
@@ -664,7 +666,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
                     {language === 'pt' ? 'Válido até' : 'Valid Until'}:{' '}
-                    <strong className="text-slate-700">{quotationToView.validUntil}</strong>
+                    <strong className="text-slate-700">{formatDateOnly(quotationToView.validUntil)}</strong>
                   </p>
                 </div>
               </div>

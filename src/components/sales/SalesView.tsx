@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Quotation, Sale } from '../../types';
 import { QuotationModal } from './QuotationModal';
+import { formatDateOnly } from '../../utils/dateFormat';
 
 interface SalesViewProps {
   onOpenNewSale: () => void;
@@ -563,7 +564,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
                               NUIT: {quote.customerNuit}
                             </span>
                           )}
-                          <span className="text-slate-400">• (Valid: {quote.validUntil})</span>
+                          <span className="text-slate-400">• (Valid: {formatDateOnly(quote.validUntil)})</span>
                         </div>
                         {quote.customerAddress && (
                           <div className="text-[10px] text-slate-400 truncate mt-0.5">
@@ -672,7 +673,7 @@ export const SalesView: React.FC<SalesViewProps> = ({
                           })}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-600 whitespace-nowrap">
-                          {quote.validUntil}
+                          {formatDateOnly(quote.validUntil)}
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-600">
                           {quote.items.length} {quote.items.length === 1 ? 'item' : 'items'}

@@ -18,6 +18,7 @@ import {
   ROLE_HIERARCHY,
   Language,
 } from '../types';
+import { formatDateOnly } from '../utils/dateFormat';
 import {
   initialAccounts,
   initialAlerts,
@@ -267,12 +268,27 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return [];
   });
 
+  const normalizeQuotation = (q: any): Quotation => ({
+    ...q,
+    validUntil: formatDateOnly(q.validUntil),
+  });
+
+  const normalizePurchaseOrder = (po: any): PurchaseOrder => ({
+    ...po,
+    expectedDeliveryDate: po.expectedDeliveryDate ? formatDateOnly(po.expectedDeliveryDate) : '',
+  });
+
+  const normalizeEmployee = (emp: any): Employee => ({
+    ...emp,
+    joinedDate: formatDateOnly(emp.joinedDate),
+  });
+
   const [quotations, setQuotations] = useState<Quotation[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}quotations`);
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeQuotation);
       } catch (e) {}
     }
     return [];
@@ -283,7 +299,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizePurchaseOrder);
       } catch (e) {}
     }
     return [];
@@ -301,6 +317,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     minStockAlert: typeof p.minStockAlert === 'number' ? p.minStockAlert : parseFloat(p.minStockAlert) || 0,
     unit: p.unit !== undefined && p.unit !== null ? String(p.unit) : 'pcs',
     barcode: p.barcode !== undefined && p.barcode !== null ? String(p.barcode).trim() : '',
+    techSpecs: p.techSpecs !== undefined && p.techSpecs !== null ? String(p.techSpecs).trim() : '',
     updatedAt: p.updatedAt || new Date().toISOString(),
   });
 
@@ -353,7 +370,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved && !isDemoString(saved)) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed.map(normalizeEmployee);
       } catch (err) {}
     }
     return [];
@@ -643,8 +660,8 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (d.expenses && Array.isArray(d.expenses)) setExpenses(d.expenses);
         if (d.accounts && Array.isArray(d.accounts)) setAccounts(d.accounts);
         if (d.stockMovements && Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements);
-        if (d.quotations && Array.isArray(d.quotations)) setQuotations(d.quotations);
-        if (d.purchaseOrders && Array.isArray(d.purchaseOrders)) setPurchaseOrders(d.purchaseOrders);
+        if (d.quotations && Array.isArray(d.quotations)) setQuotations(d.quotations.map(normalizeQuotation));
+        if (d.purchaseOrders && Array.isArray(d.purchaseOrders)) setPurchaseOrders(d.purchaseOrders.map(normalizePurchaseOrder));
         if (d.employees && Array.isArray(d.employees)) {
           const normalizedEmployees: Employee[] = d.employees.map((emp) => ({
             ...emp,
@@ -653,6 +670,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             phone: emp.phone !== undefined && emp.phone !== null ? String(emp.phone).trim() : '',
             pin: emp.pin !== undefined && emp.pin !== null ? String(emp.pin).trim() : '1234',
             password: emp.password !== undefined && emp.password !== null ? String(emp.password).trim() : 'password',
+            joinedDate: formatDateOnly(emp.joinedDate),
           }));
           setEmployees(normalizedEmployees);
           setCurrentUserState((prev) => {
@@ -867,7 +885,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             if (!isMounted) return;
             if (items.length > 0) {
               isSyncingFromFirestoreRef.current = true;
-              setQuotations(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setQuotations(items.map(normalizeQuotation).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
               setTimeout(() => {
                 isSyncingFromFirestoreRef.current = false;
               }, 300);
@@ -883,7 +901,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             if (!isMounted) return;
             if (items.length > 0) {
               isSyncingFromFirestoreRef.current = true;
-              setPurchaseOrders(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+              setPurchaseOrders(items.map(normalizePurchaseOrder).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
               setTimeout(() => {
                 isSyncingFromFirestoreRef.current = false;
               }, 300);
@@ -947,7 +965,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             if (!isMounted) return;
             if (items.length > 0) {
               isSyncingFromFirestoreRef.current = true;
-              setEmployees(items);
+              setEmployees(items.map(normalizeEmployee));
               setTimeout(() => {
                 isSyncingFromFirestoreRef.current = false;
               }, 300);

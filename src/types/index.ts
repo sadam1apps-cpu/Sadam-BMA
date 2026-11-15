@@ -1,7 +1,8 @@
-export type UserRole = 'owner' | 'manager' | 'cashier' | 'inventory_clerk';
+export type UserRole = 'owner' | 'technical_support' | 'manager' | 'cashier' | 'inventory_clerk';
 
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
   owner: 4,
+  technical_support: 3,
   manager: 3,
   inventory_clerk: 2,
   cashier: 1,
@@ -50,6 +51,7 @@ export interface Product {
   minStockAlert: number;
   unit: string;
   barcode?: string;
+  techSpecs?: string;
   updatedAt: string;
 }
 
@@ -293,6 +295,20 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewReports: true,
     canManageDatabase: true,
     canManageSettings: true,
+  },
+  technical_support: {
+    canViewProfits: false,
+    canDeleteTransactions: false,
+    canViewExpenses: true,
+    canManageInventory: true,
+    canManageEmployees: false,
+    canViewBankBalances: false,
+    canRecordSales: false,
+    canRecordExpenses: false,
+    canGiveDiscounts: false,
+    canViewReports: true,
+    canManageDatabase: true, // Core capability: Cloud Database (Firebase Firestore & Google Sheets) diagnostics & sync
+    canManageSettings: true, // System parameters, store profile, and technical integration settings
   },
   manager: {
     canViewProfits: true,

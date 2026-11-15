@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
 import { Product } from '../../types';
-import { X, Package, Tag, DollarSign, Layers, Barcode, Camera } from 'lucide-react';
+import { X, Package, Barcode, Camera, Cpu } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 
 interface ProductModalProps {
@@ -30,6 +30,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [stock, setStock] = useState<number>(20);
   const [minStockAlert, setMinStockAlert] = useState<number>(10);
   const [unit, setUnit] = useState('pcs');
+  const [techSpecs, setTechSpecs] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setStock(productToEdit.stock);
       setMinStockAlert(productToEdit.minStockAlert);
       setUnit(productToEdit.unit);
+      setTechSpecs(productToEdit.techSpecs != null ? String(productToEdit.techSpecs) : '');
     } else {
       setName('');
       setSku(initialSku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -53,6 +55,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setStock(20);
       setMinStockAlert(10);
       setUnit('pcs');
+      setTechSpecs('');
     }
   }, [productToEdit, isOpen, initialBarcode, initialSku]);
 
@@ -73,6 +76,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         stock,
         minStockAlert,
         unit,
+        techSpecs: techSpecs.trim(),
       });
     } else {
       addProduct({
@@ -85,6 +89,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         stock,
         minStockAlert,
         unit,
+        techSpecs: techSpecs.trim(),
       });
     }
 
@@ -99,9 +104,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
         <div className="fixed inset-0" onClick={onClose} />
 
-        <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden z-10">
+        <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden z-10">
           
-          <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+          <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white shrink-0">
             <div className="flex items-center gap-2">
               <Package className="w-5 h-5 text-indigo-400" />
               <h2 className="text-base font-bold text-white">
@@ -117,7 +122,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs sm:text-sm overflow-y-auto no-scrollbar">
             
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">
@@ -190,6 +195,25 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <option value="Furniture">{language === 'pt' ? 'Mobiliário' : 'Furniture'}</option>
                 <option value="General">{language === 'pt' ? 'Artigos Gerais' : 'General Goods'}</option>
               </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <Cpu className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>{t.techSpecs}</span>
+                </label>
+                <span className="text-[10px] font-medium text-slate-400">
+                  {language === 'pt' ? 'Opcional' : 'Optional'}
+                </span>
+              </div>
+              <textarea
+                rows={3}
+                placeholder={t.techSpecsPlaceholder}
+                value={techSpecs}
+                onChange={(e) => setTechSpecs(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-xs leading-relaxed focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-y min-h-[68px]"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
