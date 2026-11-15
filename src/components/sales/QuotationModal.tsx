@@ -441,31 +441,50 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       }
       y += 2;
 
+      const colItemNum = margin + 3;
+      const colDesc = margin + 17;
+      const colQty = margin + 102;
+      const colPrice = margin + 135;
+      const colTotal = pageWidth - margin - 3;
+      const maxDescWidth = colQty - colDesc - 10;
+
       doc.setFillColor(248, 250, 252);
       doc.rect(margin, y, pageWidth - margin * 2, 7, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
-      doc.text(language === 'pt' ? 'ARTIGO' : 'DESCRIPTION', margin + 3, y + 5);
-      doc.text(language === 'pt' ? 'QTD' : 'QTY', margin + 90, y + 5, { align: 'right' });
-      doc.text(language === 'pt' ? 'PREÇO' : 'PRICE', margin + 125, y + 5, { align: 'right' });
-      doc.text(language === 'pt' ? 'TOTAL' : 'TOTAL', pageWidth - margin - 3, y + 5, { align: 'right' });
+      doc.text(t.item.toUpperCase(), colItemNum, y + 5);
+      doc.text(t.description.toUpperCase(), colDesc, y + 5);
+      doc.text(t.qty.toUpperCase(), colQty, y + 5, { align: 'right' });
+      doc.text(t.price.toUpperCase(), colPrice, y + 5, { align: 'right' });
+      doc.text(t.total.toUpperCase(), colTotal, y + 5, { align: 'right' });
       y += 10;
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
 
-      quotationToView.items.forEach((item) => {
-        doc.text(item.productName, margin + 3, y);
-        doc.text(String(item.quantity), margin + 90, y, { align: 'right' });
-        doc.text(`${profile.currency}${item.unitPrice.toLocaleString()}`, margin + 125, y, {
+      quotationToView.items.forEach((item, idx) => {
+        const descLines: string[] = doc.splitTextToSize(item.productName || 'Product', maxDescWidth);
+        const rowHeight = Math.max(6, descLines.length * 4.5 + 1.5);
+
+        if (y + rowHeight > 270) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setTextColor(100, 116, 139);
+        doc.text(String(idx + 1), colItemNum, y);
+        doc.setTextColor(15, 23, 42);
+        doc.text(descLines, colDesc, y);
+        doc.text(String(item.quantity), colQty, y, { align: 'right' });
+        doc.text(`${profile.currency}${item.unitPrice.toLocaleString()}`, colPrice, y, {
           align: 'right',
         });
-        doc.text(`${profile.currency}${item.subtotal.toLocaleString()}`, pageWidth - margin - 3, y, {
+        doc.text(`${profile.currency}${item.subtotal.toLocaleString()}`, colTotal, y, {
           align: 'right',
         });
-        y += 6;
+        y += rowHeight;
       });
 
       y += 4;
@@ -710,15 +729,17 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
                     <tr>
-                      <th className="px-3 py-2">Item</th>
-                      <th className="px-3 py-2 text-right">Qty</th>
-                      <th className="px-3 py-2 text-right">Price</th>
-                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 w-12">{t.item}</th>
+                      <th className="px-3 py-2">{t.description}</th>
+                      <th className="px-3 py-2 text-right">{t.qty}</th>
+                      <th className="px-3 py-2 text-right">{t.price}</th>
+                      <th className="px-3 py-2 text-right">{t.total}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {quotationToView.items.map((it, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2 font-medium text-slate-500">{idx + 1}</td>
                         <td className="px-3 py-2 font-semibold text-slate-900">{it.productName}</td>
                         <td className="px-3 py-2 text-right text-slate-600">{it.quantity}</td>
                         <td className="px-3 py-2 text-right text-slate-600">
