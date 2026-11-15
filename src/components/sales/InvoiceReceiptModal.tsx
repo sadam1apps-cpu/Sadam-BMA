@@ -130,48 +130,78 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       y += 7;
 
       // 2. Receipt Meta Box
-      doc.setFillColor(248, 250, 252); // slate-50
-      doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'F');
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'D');
-
       const colLeft = margin + 4;
+      const colLeftMaxX = margin + contentWidth / 2 - 2;
       const colRight = margin + contentWidth / 2 + 4;
-      const metaY1 = y + 6;
-      const metaY2 = y + 13;
-      const metaY3 = y + 19;
+      const colRightMaxX = pageWidth - margin - 4;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`${t.invoiceNo}:`, colLeft, metaY1);
-      doc.text(`${t.dateTime}:`, colRight, metaY1);
+      const invoiceLabel = `${t.invoiceNo}:`;
+      const dateLabel = `${t.dateTime}:`;
+      const customerLabel = `${t.customer}:`;
+      const issuedByLabel = `${t.issuedBy}:`;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
-      doc.text(sale.invoiceNumber, colLeft + 22, metaY1);
-      doc.text(saleDateFormatted, colRight + 22, metaY1);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`${t.customer}:`, colLeft, metaY2);
-      doc.text(`${t.issuedBy}:`, colRight, metaY2);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(15, 23, 42);
       const custText = sale.customerPhone
         ? `${sale.customerName} (${sale.customerPhone})`
         : sale.customerName;
-      doc.text(custText, colLeft + 22, metaY2);
       const cashierText = sale.cashierName || currentUser?.name || profile.ownerName || '';
-      if (cashierText) {
-        doc.text(cashierText, colRight + 22, metaY2);
-      }
 
-      y += 31;
+      const measureMetaField = (label: string, value: string, colX: number, colMaxX: number) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const labelWidth = doc.getTextWidth(label);
+        const valX = colX + labelWidth + 2;
+        const availWidth = Math.max(20, colMaxX - valX);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        const lines: string[] = value ? doc.splitTextToSize(value, availWidth) : [];
+        return { label, valX, lines };
+      };
+
+      const fieldInvoice = measureMetaField(invoiceLabel, sale.invoiceNumber, colLeft, colLeftMaxX);
+      const fieldDate = measureMetaField(dateLabel, saleDateFormatted, colRight, colRightMaxX);
+      const fieldCustomer = measureMetaField(customerLabel, custText, colLeft, colLeftMaxX);
+      const fieldCashier = measureMetaField(issuedByLabel, cashierText, colRight, colRightMaxX);
+
+      const lineStep = 4.2;
+      const row1Lines = Math.max(1, fieldInvoice.lines.length, fieldDate.lines.length);
+      const row2Lines = Math.max(1, fieldCustomer.lines.length, fieldCashier.lines.length);
+      const row1Height = row1Lines * lineStep + 2.8;
+      const row2Height = row2Lines * lineStep;
+      const metaBoxHeight = Math.max(24, 6 + row1Height + row2Height + 4);
+
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.roundedRect(margin, y, contentWidth, metaBoxHeight, 2, 2, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, y, contentWidth, metaBoxHeight, 2, 2, 'D');
+
+      const metaY1 = y + 6;
+      const metaY2 = metaY1 + row1Height;
+
+      const drawMetaField = (
+        field: { label: string; valX: number; lines: string[] },
+        colX: number,
+        rowY: number
+      ) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(field.label, colX, rowY);
+
+        if (field.lines.length > 0) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(15, 23, 42);
+          doc.text(field.lines, field.valX, rowY);
+        }
+      };
+
+      drawMetaField(fieldInvoice, colLeft, metaY1);
+      drawMetaField(fieldDate, colRight, metaY1);
+      drawMetaField(fieldCustomer, colLeft, metaY2);
+      drawMetaField(fieldCashier, colRight, metaY2);
+
+      y += metaBoxHeight + 7;
 
       // 3. Table Header
       doc.setFillColor(241, 245, 249); // slate-100
@@ -183,12 +213,15 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
 
-      const colItem = margin + 3;
-      const colQty = margin + contentWidth * 0.55;
-      const colPrice = margin + contentWidth * 0.75;
+      const colItemNum = margin + 3;
+      const colDesc = margin + 17;
+      const colQty = margin + contentWidth * 0.58;
+      const colPrice = margin + contentWidth * 0.78;
       const colTotal = pageWidth - margin - 3;
+      const maxDescWidth = colQty - colDesc - 8;
 
-      doc.text(t.item.toUpperCase(), colItem, y + 5);
+      doc.text(t.item.toUpperCase(), colItemNum, y + 5);
+      doc.text(t.description.toUpperCase(), colDesc, y + 5);
       doc.text(t.qty.toUpperCase(), colQty, y + 5, { align: 'center' });
       doc.text(t.price.toUpperCase(), colPrice, y + 5, { align: 'right' });
       doc.text(t.total.toUpperCase(), colTotal, y + 5, { align: 'right' });
@@ -200,16 +233,26 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
 
-      sale.items.forEach((item) => {
+      sale.items.forEach((item, idx) => {
+        const itemName = item.productName || 'Product';
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        const descLines: string[] = doc.splitTextToSize(itemName, maxDescWidth);
+        const rowHeight = Math.max(6.5, descLines.length * 4.2 + 2.3);
+
         // Page break safety
-        if (y > 260) {
+        if (y + rowHeight > 265) {
           doc.addPage();
           y = 20;
         }
 
-        const itemName = item.productName || 'Product';
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text(String(idx + 1), colItemNum, y + 4.5);
+
         doc.setFont('helvetica', 'bold');
-        doc.text(itemName, colItem, y + 4.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(descLines, colDesc, y + 4.5);
 
         doc.setFont('helvetica', 'normal');
         doc.text(String(item.quantity), colQty, y + 4.5, { align: 'center' });
@@ -221,7 +264,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
           align: 'right',
         });
 
-        y += 6.5;
+        y += rowHeight;
         doc.setDrawColor(241, 245, 249);
         doc.line(margin, y, pageWidth - margin, y);
         y += 1.5;
@@ -298,7 +341,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
       });
       y += 5;
 
-      // Balance or Paid in Full badge
+      // Balance due (only shown when unpaid balance remains)
       if (sale.balanceDue > 0) {
         doc.setFillColor(255, 241, 242); // rose-50
         doc.roundedRect(summaryLabelX - 4, y - 4, contentWidth * 0.4 + 4, 7, 1.5, 1.5, 'F');
@@ -308,16 +351,10 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
         doc.text(`${profile.currency}${sale.balanceDue.toLocaleString()}`, summaryValX, y, {
           align: 'right',
         });
+        y += 12;
       } else {
-        doc.setFillColor(236, 253, 245); // emerald-50
-        doc.roundedRect(summaryLabelX - 4, y - 4, contentWidth * 0.4 + 4, 7, 1.5, 1.5, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(5, 150, 105); // emerald-600
-        doc.text(`✓ ${t.fullPaymentReceived}`, summaryLabelX, y);
-        doc.text(t.paidInFull, summaryValX, y, { align: 'right' });
+        y += 4;
       }
-
-      y += 12;
 
       // Notes
       if (sale.notes) {
@@ -550,7 +587,8 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b-2 border-slate-300 text-slate-600 font-bold uppercase text-[11px]">
-                    <th className="text-left py-2">{t.item}</th>
+                    <th className="text-left py-2 w-12">{t.item}</th>
+                    <th className="text-left py-2">{t.description}</th>
                     <th className="text-center py-2">{t.qty}</th>
                     <th className="text-right py-2">{t.price}</th>
                     <th className="text-right py-2">{t.total}</th>
@@ -559,6 +597,9 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
                 <tbody className="divide-y divide-slate-100">
                   {sale.items.map((item, idx) => (
                     <tr key={idx} className="py-2">
+                      <td className="py-2.5 font-medium text-slate-500">
+                        {idx + 1}
+                      </td>
                       <td className="py-2.5 font-medium text-slate-900">
                         {item.productName}
                       </td>
@@ -617,17 +658,10 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({ sale, 
                 <span>{profile.currency}{sale.amountPaid.toLocaleString()}</span>
               </div>
 
-              {sale.balanceDue > 0 ? (
+              {sale.balanceDue > 0 && (
                 <div className="flex justify-between text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-lg border border-rose-200">
                   <span>{t.balanceDue}:</span>
                   <span>{profile.currency}{sale.balanceDue.toLocaleString()}</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-xs font-bold text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> {t.fullPaymentReceived}
-                  </span>
-                  <span>{t.paidInFull}</span>
                 </div>
               )}
             </div>
