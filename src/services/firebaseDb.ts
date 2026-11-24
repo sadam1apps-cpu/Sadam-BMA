@@ -391,6 +391,83 @@ export async function seedInitialFirestoreData(data: {
 }
 
 /**
+ * Batch-write records to Firestore using writeBatch (chunks of 400)
+ */
+export async function batchWriteAllToFirestore(data: {
+  profile: BusinessProfile;
+  products: Product[];
+  sales: Sale[];
+  quotations: Quotation[];
+  purchaseOrders: PurchaseOrder[];
+  customers: Customer[];
+  suppliers: Supplier[];
+  expenses: Expense[];
+  employees: Employee[];
+  accounts: Account[];
+  stockMovements: StockMovement[];
+}): Promise<number> {
+  const operations: Array<{ collectionName: string; id: string; payload: Record<string, any> }> = [
+    {
+      collectionName: COLLECTIONS.BUSINESS_PROFILE,
+      id: 'main',
+      payload: cleanForFirestore({ ...data.profile, id: 'main', updatedAt: new Date().toISOString() }),
+    },
+    ...data.products.map((p) => ({
+      collectionName: COLLECTIONS.PRODUCTS,
+      id: p.id,
+      payload: cleanForFirestore({
+        ...p,
+        barcode: p.barcode !== undefined && p.barcode !== null ? String(p.barcode).trim() : '',
+        techSpecs: p.techSpecs !== undefined && p.techSpecs !== null ? String(p.techSpecs).trim() : '',
+      }),
+    })),
+    ...data.customers.map((c) => ({ collectionName: COLLECTIONS.CUSTOMERS, id: c.id, payload: cleanForFirestore(c) })),
+    ...data.suppliers.map((s) => ({ collectionName: COLLECTIONS.SUPPLIERS, id: s.id, payload: cleanForFirestore(s) })),
+    ...data.expenses.map((e) => ({ collectionName: COLLECTIONS.EXPENSES, id: e.id, payload: cleanForFirestore(e) })),
+    ...data.employees.map((emp) => ({
+      collectionName: COLLECTIONS.EMPLOYEES,
+      id: emp.id,
+      payload: cleanForFirestore({ ...emp, joinedDate: formatDateOnly(emp.joinedDate) }),
+    })),
+    ...data.accounts.map((a) => ({ collectionName: COLLECTIONS.ACCOUNTS, id: a.id, payload: cleanForFirestore(a) })),
+    ...data.quotations.map((q) => ({
+      collectionName: COLLECTIONS.QUOTATIONS,
+      id: q.id,
+      payload: cleanForFirestore({ ...q, validUntil: formatDateOnly(q.validUntil) }),
+    })),
+    ...data.sales.map((sa) => ({ collectionName: COLLECTIONS.SALES, id: sa.id, payload: cleanForFirestore(sa) })),
+    ...data.purchaseOrders.map((po) => ({
+      collectionName: COLLECTIONS.PURCHASE_ORDERS,
+      id: po.id,
+      payload: cleanForFirestore({
+        ...po,
+        expectedDeliveryDate: po.expectedDeliveryDate ? formatDateOnly(po.expectedDeliveryDate) : '',
+      }),
+    })),
+    ...data.stockMovements.map((sm) => ({
+      collectionName: COLLECTIONS.STOCK_MOVEMENTS,
+      id: sm.id,
+      payload: cleanForFirestore(sm),
+    })),
+  ];
+
+  try {
+    const CHUNK_SIZE = 400;
+    for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+      const chunk = operations.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const op of chunk) {
+        batch.set(doc(db, op.collectionName, op.id), op.payload);
+      }
+      await batch.commit();
+    }
+    return operations.length;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'batch-sync-all');
+  }
+}
+
+/**
  * Fetch all documents in a collection once
  */
 export async function fetchCollection<T>(collectionName: string): Promise<T[]> {

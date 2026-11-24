@@ -47,6 +47,7 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,

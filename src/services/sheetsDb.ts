@@ -200,6 +200,7 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'address', type: 'string', description: 'Store physical street address', sample: '450 Downtown Avenue, City Center', required: true },
       { name: 'taxRate', type: 'number', description: 'Sales tax rate percentage', sample: '5.0', required: true },
       { name: 'invoiceFooter', type: 'string', description: 'Printed bottom receipt message', sample: 'Thank you for shopping with us! Returns accepted within 14 days.', required: true },
+      { name: 'language', type: 'string', description: 'Default UI language (en | pt)', sample: 'en', required: false },
       { name: 'logo', type: 'string', description: 'Business brand logo data URL or image link', sample: '', required: false },
       { name: 'bankDetails', type: 'json', description: 'Optional bank account details for quotations', sample: '[]', required: false },
     ],
@@ -375,6 +376,48 @@ function doPost(e) {
 
     var payload = JSON.parse(contents);
     var action = payload.action || 'syncAll';
+
+    if (action === 'syncDelta' && payload.delta) {
+      var delta = payload.delta;
+      var upserts = delta.upserts || {};
+      var deletes = delta.deletes || {};
+      var collectionMap = {
+        products: 'Products',
+        sales: 'Sales',
+        customers: 'Customers',
+        suppliers: 'Suppliers',
+        expenses: 'Expenses',
+        accounts: 'Accounts',
+        stockMovements: 'StockMovements',
+        employees: 'Employees',
+        quotations: 'Quotations',
+        purchaseOrders: 'PurchaseOrders'
+      };
+
+      var updatedSheets = [];
+      for (var colKey in collectionMap) {
+        var sheetTitle = collectionMap[colKey];
+        var colUpserts = Array.isArray(upserts[colKey]) ? upserts[colKey] : [];
+        var colDeletes = Array.isArray(deletes[colKey]) ? deletes[colKey] : [];
+        if (colUpserts.length > 0 || colDeletes.length > 0) {
+          applySheetDelta(ss, sheetTitle, SCHEMAS[sheetTitle], colUpserts, colDeletes);
+          updatedSheets.push(sheetTitle);
+        }
+      }
+
+      if (delta.profile) {
+        writeSheetData(ss, 'BusinessProfile', SCHEMAS['BusinessProfile'], [delta.profile]);
+        updatedSheets.push('BusinessProfile');
+      }
+
+      return jsonResponse({
+        status: 'success',
+        mode: 'delta',
+        message: 'Incremental backup completed for ' + updatedSheets.length + ' sheet(s)',
+        syncedSheets: updatedSheets,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     if (action === 'syncAll' && payload.data) {
       var d = payload.data;
@@ -556,12 +599,12 @@ function readSheetData(ss, sheetName, expectedHeaders) {
       if (colIdx !== undefined && colIdx < row.length) {
         var cellVal = row[colIdx];
 
-        // Parse JSON strings (e.g. items array or customPermissions object)
-        if ((headerKey === 'items' || headerKey === 'customPermissions') && typeof cellVal === 'string' && (cellVal.indexOf('[') === 0 || cellVal.indexOf('{') === 0)) {
+        // Parse JSON strings (e.g. items array, customPermissions object, or bankDetails array)
+        if ((headerKey === 'items' || headerKey === 'customPermissions' || headerKey === 'bankDetails') && typeof cellVal === 'string' && (cellVal.indexOf('[') === 0 || cellVal.indexOf('{') === 0)) {
           try {
             record[headerKey] = JSON.parse(cellVal);
           } catch(e) {
-            record[headerKey] = headerKey === 'items' ? [] : {};
+            record[headerKey] = (headerKey === 'items' || headerKey === 'bankDetails') ? [] : {};
           }
         } else if (cellVal instanceof Date) {
           if (headerKey === 'validUntil' || headerKey === 'expectedDeliveryDate' || headerKey === 'joinedDate') {
@@ -637,6 +680,110 @@ function writeSheetData(ss, sheetName, expectedHeaders, records) {
 }
 
 /**
+ * Incrementally upsert modified/new rows by ID and remove deleted rows without rewriting unchanged data
+ */
+function applySheetDelta(ss, sheetName, expectedHeaders, upsertRecords, deleteIds) {
+  var resolved = ensureSheetAndHeaders(ss, sheetName, expectedHeaders);
+  var sheet = resolved.sheet;
+  var colMap = resolved.colMap;
+  var totalCols = sheet.getLastColumn();
+  var idColIdx = colMap['id'];
+
+  if (idColIdx === undefined) {
+    if (upsertRecords && upsertRecords.length > 0) {
+      writeSheetData(ss, sheetName, expectedHeaders, upsertRecords);
+    }
+    return;
+  }
+
+  function buildIdRowMap() {
+    var map = {};
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var idVals = sheet.getRange(2, idColIdx + 1, lastRow - 1, 1).getValues();
+      for (var r = 0; r < idVals.length; r++) {
+        var cellId = String(idVals[r][0] || '').trim();
+        if (cellId) {
+          map[cellId] = r + 2;
+        }
+      }
+    }
+    return map;
+  }
+
+  var idToRow = buildIdRowMap();
+
+  // 1. Delete removed records (bottom-up so row indices stay valid)
+  if (deleteIds && deleteIds.length > 0) {
+    var rowsToDelete = [];
+    for (var d = 0; d < deleteIds.length; d++) {
+      var delId = String(deleteIds[d] || '').trim();
+      if (delId && idToRow[delId]) {
+        rowsToDelete.push(idToRow[delId]);
+      }
+    }
+    if (rowsToDelete.length > 0) {
+      rowsToDelete.sort(function(a, b) { return b - a; });
+      for (var x = 0; x < rowsToDelete.length; x++) {
+        sheet.deleteRow(rowsToDelete[x]);
+      }
+      if (upsertRecords && upsertRecords.length > 0) {
+        idToRow = buildIdRowMap();
+      }
+    }
+  }
+
+  // 2. Upsert modified rows in-place and append brand-new rows
+  if (!upsertRecords || upsertRecords.length === 0) {
+    return;
+  }
+
+  var rowsToAppend = [];
+  for (var i = 0; i < upsertRecords.length; i++) {
+    var rec = upsertRecords[i];
+    if (!rec || rec.id === undefined || rec.id === null) continue;
+    var recId = String(rec.id).trim();
+    var existingRowNum = idToRow[recId];
+
+    var row;
+    if (existingRowNum) {
+      row = sheet.getRange(existingRowNum, 1, 1, totalCols).getValues()[0];
+    } else {
+      row = new Array(totalCols);
+      for (var c = 0; c < totalCols; c++) {
+        row[c] = '';
+      }
+    }
+
+    for (var key in rec) {
+      var lowerKey = key.toLowerCase();
+      var colIndex = colMap[lowerKey];
+      if (colIndex !== undefined && colIndex < totalCols) {
+        var val = rec[key];
+        if (typeof val === 'object' && val !== null) {
+          row[colIndex] = JSON.stringify(val);
+        } else if (val === undefined || val === null) {
+          row[colIndex] = '';
+        } else {
+          row[colIndex] = val;
+        }
+      }
+    }
+
+    if (existingRowNum) {
+      sheet.getRange(existingRowNum, 1, 1, totalCols).setValues([row]);
+    } else {
+      rowsToAppend.push(row);
+    }
+  }
+
+  if (rowsToAppend.length > 0) {
+    var startAppendRow = Math.max(2, sheet.getLastRow() + 1);
+    sheet.getRange(startAppendRow, 1, rowsToAppend.length, totalCols).setValues(rowsToAppend);
+  }
+}
+
+/**
  * Format headers nicely: Bold, dark slate background, white text, frozen Row 1
  */
 function formatHeaderRow(sheet, numCols) {
@@ -708,7 +855,7 @@ export async function fetchSheetViaGviz(spreadsheetId: string, sheetName: string
           hasData = true;
         }
         if (
-          (colKey === 'items' || colKey === 'customPermissions') &&
+          (colKey === 'items' || colKey === 'customPermissions' || colKey === 'bankDetails') &&
           typeof val === 'string' &&
           (val.startsWith('{') || val.startsWith('['))
         ) {
@@ -1131,6 +1278,193 @@ export async function pushAllToSheets(
     return {
       success: false,
       message: err.message || 'Error pushing to Google Sheets. Will retry automatically.',
+    };
+  }
+}
+
+export type SheetsDeltaCollectionKey =
+  | 'products'
+  | 'sales'
+  | 'customers'
+  | 'suppliers'
+  | 'expenses'
+  | 'accounts'
+  | 'stockMovements'
+  | 'employees'
+  | 'quotations'
+  | 'purchaseOrders';
+
+export interface SheetsDeltaPayload {
+  upserts: Partial<{
+    products: Product[];
+    sales: Sale[];
+    customers: Customer[];
+    suppliers: Supplier[];
+    expenses: Expense[];
+    accounts: Account[];
+    stockMovements: StockMovement[];
+    employees: Employee[];
+    quotations: Quotation[];
+    purchaseOrders: PurchaseOrder[];
+  }>;
+  deletes: Partial<Record<SheetsDeltaCollectionKey, string[]>>;
+  profile?: BusinessProfile;
+}
+
+const DELTA_COLLECTION_TO_SHEET: Record<SheetsDeltaCollectionKey | 'profile', string> = {
+  products: 'Products',
+  sales: 'Sales',
+  customers: 'Customers',
+  suppliers: 'Suppliers',
+  expenses: 'Expenses',
+  accounts: 'Accounts',
+  stockMovements: 'StockMovements',
+  employees: 'Employees',
+  quotations: 'Quotations',
+  purchaseOrders: 'PurchaseOrders',
+  profile: 'BusinessProfile',
+};
+
+function sortObjectKeysDeep(val: any): any {
+  if (Array.isArray(val)) {
+    return val.map(sortObjectKeysDeep);
+  }
+  if (val && typeof val === 'object') {
+    const sorted: Record<string, any> = {};
+    Object.keys(val)
+      .sort()
+      .forEach((k) => {
+        if (val[k] !== undefined) {
+          sorted[k] = sortObjectKeysDeep(val[k]);
+        }
+      });
+    return sorted;
+  }
+  return val;
+}
+
+export function canonicalRecordHash(
+  collectionKey: SheetsDeltaCollectionKey | 'profile',
+  record: any
+): string {
+  if (!record || typeof record !== 'object') return '';
+  const sheetName = DELTA_COLLECTION_TO_SHEET[collectionKey];
+  const schema = SHEETS_DATABASE_SCHEMAS.find((s) => s.sheetName === sheetName);
+  if (!schema) {
+    return JSON.stringify(sortObjectKeysDeep(record));
+  }
+
+  const normalized: Record<string, any> = {};
+  for (const col of schema.columns) {
+    const raw = record[col.name];
+    if (col.type === 'number') {
+      const n = typeof raw === 'number' ? raw : parseFloat(raw);
+      normalized[col.name] = Number.isFinite(n) ? Number(n.toFixed(6)) : 0;
+    } else if (col.type === 'boolean') {
+      normalized[col.name] = raw === true || raw === 'true';
+    } else if (col.type === 'json') {
+      let parsed = raw;
+      if (typeof raw === 'string' && raw.trim()) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = raw.trim();
+        }
+      }
+      if (parsed === undefined || parsed === null || parsed === '') {
+        parsed = col.name === 'customPermissions' ? {} : [];
+      }
+      normalized[col.name] = sortObjectKeysDeep(parsed);
+    } else if (col.type === 'date') {
+      const str = raw !== undefined && raw !== null ? String(raw).trim() : '';
+      if (!str) {
+        normalized[col.name] = '';
+      } else if (
+        col.name === 'validUntil' ||
+        col.name === 'expectedDeliveryDate' ||
+        col.name === 'joinedDate'
+      ) {
+        normalized[col.name] = formatDateOnly(str);
+      } else {
+        const ms = Date.parse(str);
+        normalized[col.name] = Number.isFinite(ms) ? Math.floor(ms / 1000) : str;
+      }
+    } else {
+      normalized[col.name] = raw !== undefined && raw !== null ? String(raw).trim() : '';
+    }
+  }
+
+  return JSON.stringify(normalized);
+}
+
+/**
+ * Push only new, modified, or deleted records to Google Sheets
+ */
+export async function pushDeltaToSheets(
+  scriptUrl: string,
+  delta: SheetsDeltaPayload
+): Promise<{ success: boolean; message: string; unsupportedAction?: boolean }> {
+  if (!scriptUrl || !scriptUrl.trim()) {
+    return { success: false, message: 'Google Apps Script Web App URL is required.' };
+  }
+
+  const cleanUrl = scriptUrl.trim();
+
+  try {
+    recordApiCall('write');
+    const { ok, status, text } = await fetchWithRetryAndBackoff(
+      cleanUrl,
+      {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify({
+          action: 'syncDelta',
+          delta,
+        }),
+        redirect: 'follow',
+      },
+      2,
+      30000
+    );
+
+    if (!ok && status !== 200) {
+      return { success: false, message: `Cloud database returned HTTP ${status}. Retrying in background.` };
+    }
+
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      if (text.includes('Service invoked too many times')) {
+        return { success: false, message: 'Google Sheets rate limit reached. Retrying automatically shortly.' };
+      }
+      return { success: false, message: 'Cloud database temporarily busy. Retrying in background.' };
+    }
+
+    if (json.status === 'success') {
+      return {
+        success: true,
+        message: json.message || 'Incremental backup to Google Sheets completed.',
+      };
+    }
+
+    const msg = String(json.message || 'Spreadsheet returned error on save.');
+    if (msg.toLowerCase().includes('unknown action')) {
+      return {
+        success: false,
+        unsupportedAction: true,
+        message: msg,
+      };
+    }
+
+    return { success: false, message: msg };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Error pushing incremental backup to Google Sheets.',
     };
   }
 }

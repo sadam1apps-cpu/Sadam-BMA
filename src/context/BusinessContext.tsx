@@ -35,6 +35,10 @@ import {
 import {
   fetchAllFromSheets,
   pushAllToSheets,
+  pushDeltaToSheets,
+  canonicalRecordHash,
+  SheetsDeltaCollectionKey,
+  SheetsDeltaPayload,
   testSheetsConnection,
   ApiQuotaStats,
   getApiQuotaStats,
@@ -58,6 +62,7 @@ import {
   saveAccountToFirestore,
   deleteAccountFromFirestore,
   saveStockMovementToFirestore,
+  batchWriteAllToFirestore,
   subscribeToCollection,
   subscribeToDocument,
   seedInitialFirestoreData,
@@ -192,6 +197,144 @@ interface BusinessContextType {
 }
 
 const STORAGE_PREFIX = 'biz_mgr_sheets_db_';
+const DIRTY_DELTA_STORAGE_KEY = `${STORAGE_PREFIX}dirtyDeltas_v1`;
+const SYNCED_HASHES_STORAGE_KEY = `${STORAGE_PREFIX}syncedHashes_v1`;
+
+const DELTA_COLLECTION_KEYS: SheetsDeltaCollectionKey[] = [
+  'products',
+  'sales',
+  'customers',
+  'suppliers',
+  'expenses',
+  'accounts',
+  'stockMovements',
+  'employees',
+  'quotations',
+  'purchaseOrders',
+];
+
+interface DirtyDeltaState {
+  upserts: Record<SheetsDeltaCollectionKey, string[]>;
+  deletes: Record<SheetsDeltaCollectionKey, string[]>;
+  profile: boolean;
+}
+
+type SyncedHashesMap = Partial<Record<SheetsDeltaCollectionKey, Record<string, string>>> & {
+  profile?: string;
+  hasFullBaseline?: boolean;
+};
+
+const createEmptyDirtyDelta = (): DirtyDeltaState => ({
+  upserts: {
+    products: [],
+    sales: [],
+    customers: [],
+    suppliers: [],
+    expenses: [],
+    accounts: [],
+    stockMovements: [],
+    employees: [],
+    quotations: [],
+    purchaseOrders: [],
+  },
+  deletes: {
+    products: [],
+    sales: [],
+    customers: [],
+    suppliers: [],
+    expenses: [],
+    accounts: [],
+    stockMovements: [],
+    employees: [],
+    quotations: [],
+    purchaseOrders: [],
+  },
+  profile: false,
+});
+
+const loadDirtyDeltaFromStorage = (): DirtyDeltaState => {
+  const base = createEmptyDirtyDelta();
+  try {
+    const raw = localStorage.getItem(DIRTY_DELTA_STORAGE_KEY);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return base;
+    for (const key of DELTA_COLLECTION_KEYS) {
+      if (Array.isArray(parsed.upserts?.[key])) {
+        base.upserts[key] = Array.from(new Set(parsed.upserts[key].map(String)));
+      }
+      if (Array.isArray(parsed.deletes?.[key])) {
+        base.deletes[key] = Array.from(new Set(parsed.deletes[key].map(String)));
+      }
+    }
+    base.profile = Boolean(parsed.profile);
+  } catch {}
+  return base;
+};
+
+const saveDirtyDeltaToStorage = (state: DirtyDeltaState) => {
+  try {
+    localStorage.setItem(DIRTY_DELTA_STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+};
+
+const countDirtyDelta = (state: DirtyDeltaState): number => {
+  let total = state.profile ? 1 : 0;
+  for (const key of DELTA_COLLECTION_KEYS) {
+    total += state.upserts[key].length + state.deletes[key].length;
+  }
+  return total;
+};
+
+const loadSyncedHashesFromStorage = (): SyncedHashesMap | null => {
+  try {
+    const raw = localStorage.getItem(SYNCED_HASHES_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveSyncedHashesToStorage = (hashes: SyncedHashesMap) => {
+  try {
+    localStorage.setItem(SYNCED_HASHES_STORAGE_KEY, JSON.stringify(hashes));
+  } catch {}
+};
+
+const buildHashesMapFromData = (data: {
+  products?: Product[];
+  sales?: Sale[];
+  customers?: Customer[];
+  suppliers?: Supplier[];
+  expenses?: Expense[];
+  accounts?: Account[];
+  stockMovements?: StockMovement[];
+  employees?: Employee[];
+  quotations?: Quotation[];
+  purchaseOrders?: PurchaseOrder[];
+  profile?: BusinessProfile;
+}): SyncedHashesMap => {
+  const map: SyncedHashesMap = {};
+  for (const key of DELTA_COLLECTION_KEYS) {
+    const list = (data as any)[key];
+    if (Array.isArray(list)) {
+      const colMap: Record<string, string> = {};
+      for (const item of list) {
+        if (item && item.id !== undefined && item.id !== null) {
+          colMap[String(item.id)] = canonicalRecordHash(key, item);
+        }
+      }
+      map[key] = colMap;
+    }
+  }
+  if (data.profile) {
+    map.profile = canonicalRecordHash('profile', data.profile);
+  }
+  map.hasFullBaseline = true;
+  return map;
+};
 
 export const DEFAULT_SHEETS_URL =
   'https://script.google.com/macros/s/AKfycbyDzfC-9Se5Xf4CA0on6NHDoJ3PSAJBNMdpEeGSkiCsEa5GSIWJANOLOse6dkQptNSa/exec';
@@ -474,12 +617,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
   const [sheetsSyncStatus, setSheetsSyncStatus] = useState<SheetsSyncStatus>(() => {
     const activeUrl = envSheetsUrl || DEFAULT_SHEETS_URL;
-    return activeUrl ? 'syncing' : 'disconnected';
+    return activeUrl ? 'connected' : 'disconnected';
   });
-  const [isInitialSyncLoading, setIsInitialSyncLoading] = useState<boolean>(() => {
-    const activeUrl = envSheetsUrl || DEFAULT_SHEETS_URL;
-    return Boolean(activeUrl && activeUrl.trim());
-  });
+  const [isInitialSyncLoading, setIsInitialSyncLoading] = useState<boolean>(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => {
     return (
       localStorage.getItem(`${STORAGE_PREFIX}lastSyncedAt`) ||
@@ -525,49 +665,19 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setFirebaseSyncStatus('connecting');
     setFirebaseError(null);
     try {
-      let count = 0;
-      await saveProfileToFirestore(profile);
-      count++;
-      for (const p of products) {
-        await saveProductToFirestore(p);
-        count++;
-      }
-      for (const c of customers) {
-        await saveCustomerToFirestore(c);
-        count++;
-      }
-      for (const s of suppliers) {
-        await saveSupplierToFirestore(s);
-        count++;
-      }
-      for (const e of expenses) {
-        await saveExpenseToFirestore(e);
-        count++;
-      }
-      for (const emp of employees) {
-        await saveEmployeeToFirestore(emp);
-        count++;
-      }
-      for (const a of accounts) {
-        await saveAccountToFirestore(a);
-        count++;
-      }
-      for (const q of quotations) {
-        await saveQuotationToFirestore(q);
-        count++;
-      }
-      for (const sa of sales) {
-        await saveSaleToFirestore(sa);
-        count++;
-      }
-      for (const po of purchaseOrders) {
-        await savePurchaseOrderToFirestore(po);
-        count++;
-      }
-      for (const sm of stockMovements) {
-        await saveStockMovementToFirestore(sm);
-        count++;
-      }
+      const count = await batchWriteAllToFirestore({
+        profile,
+        products,
+        sales,
+        quotations,
+        purchaseOrders,
+        customers,
+        suppliers,
+        expenses,
+        employees,
+        accounts,
+        stockMovements,
+      });
       setFirebaseSyncStatus('connected');
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setFirebaseLastSyncedAt(nowStr);
@@ -582,18 +692,51 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return { success: false, message: err.message || 'Failed to sync to Firebase' };
     }
   };
+  const initialDirtyDelta = loadDirtyDeltaFromStorage();
+  const initialDirtyCount = countDirtyDelta(initialDirtyDelta);
   const [syncStrategy, setSyncStrategyState] = useState<'smart_batch' | 'interval_15m' | 'manual'>(() => {
     return (localStorage.getItem(`${STORAGE_PREFIX}syncStrategy`) as any) || 'smart_batch';
   });
-  const [pendingChangesCount, setPendingChangesCount] = useState<number>(0);
+  const [pendingChangesCount, setPendingChangesCount] = useState<number>(initialDirtyCount);
   const [apiQuotaStats, setApiQuotaStats] = useState<ApiQuotaStats>(() => getApiQuotaStats());
 
-  const pendingChangesRef = useRef<number>(0);
+  const dirtyDeltaRef = useRef<DirtyDeltaState>(initialDirtyDelta);
+  const syncedHashesRef = useRef<SyncedHashesMap | null>(loadSyncedHashesFromStorage());
+  const pendingChangesRef = useRef<number>(initialDirtyCount);
   const debounceTimerRef = useRef<any>(null);
   const isSyncingFromSheetsRef = useRef<boolean>(false);
   const isSyncOperationActiveRef = useRef<boolean>(false);
   const pendingPushQueuedRef = useRef<boolean>(false);
-  const isInitialMount = useRef<boolean>(true);
+  const latestDataRef = useRef({
+    products,
+    sales,
+    customers,
+    suppliers,
+    expenses,
+    accounts,
+    stockMovements,
+    employees,
+    profile,
+    quotations,
+    purchaseOrders,
+  });
+  latestDataRef.current = {
+    products,
+    sales,
+    customers,
+    suppliers,
+    expenses,
+    accounts,
+    stockMovements,
+    employees,
+    profile,
+    quotations,
+    purchaseOrders,
+  };
+  const syncStrategyRef = useRef(syncStrategy);
+  syncStrategyRef.current = syncStrategy;
+  const sheetsUrlRef = useRef(sheetsUrl);
+  sheetsUrlRef.current = sheetsUrl;
 
   const setSyncStrategy = (strat: 'smart_batch' | 'interval_15m' | 'manual') => {
     setSyncStrategyState(strat);
@@ -718,6 +861,26 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }));
         }
 
+        const restoredHashes = buildHashesMapFromData({
+          products: Array.isArray(d.products) ? d.products.map(normalizeProduct) : undefined,
+          sales: Array.isArray(d.sales) ? d.sales : undefined,
+          customers: Array.isArray(d.customers) ? d.customers : undefined,
+          suppliers: Array.isArray(d.suppliers) ? d.suppliers : undefined,
+          expenses: Array.isArray(d.expenses) ? d.expenses : undefined,
+          accounts: Array.isArray(d.accounts) ? d.accounts : undefined,
+          stockMovements: Array.isArray(d.stockMovements) ? d.stockMovements : undefined,
+          employees: Array.isArray(d.employees) ? d.employees.map(normalizeEmployee) : undefined,
+          quotations: Array.isArray(d.quotations) ? d.quotations.map(normalizeQuotation) : undefined,
+          purchaseOrders: Array.isArray(d.purchaseOrders) ? d.purchaseOrders.map(normalizePurchaseOrder) : undefined,
+          profile: d.profile && typeof d.profile === 'object' ? { ...profile, ...d.profile } : undefined,
+        });
+        syncedHashesRef.current = restoredHashes;
+        saveSyncedHashesToStorage(restoredHashes);
+        dirtyDeltaRef.current = createEmptyDirtyDelta();
+        saveDirtyDeltaToStorage(dirtyDeltaRef.current);
+        pendingChangesRef.current = 0;
+        setPendingChangesCount(0);
+
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setLastSyncedAt(nowStr);
         localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
@@ -747,14 +910,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // If a push was requested while pull was in flight, execute it cleanly
         if (pendingPushQueuedRef.current) {
           pendingPushQueuedRef.current = false;
-          pushToSheetsNow();
+          executeSheetsPush(true);
         }
       }, 1200);
     }
   };
 
-  const pushToSheetsNow = async (): Promise<boolean> => {
-    if (!sheetsUrl || !sheetsUrl.trim()) return false;
+  const executeSheetsPush = async (isAutoTrigger: boolean): Promise<boolean> => {
+    const targetUrl = sheetsUrlRef.current;
+    if (!targetUrl || !targetUrl.trim()) return false;
 
     // Concurrency protection: if already syncing/pushing, queue this push to execute next
     if (isSyncOperationActiveRef.current) {
@@ -767,27 +931,235 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSyncError(null);
 
     try {
-      const res = await pushAllToSheets(sheetsUrl, {
-        products,
-        sales,
-        customers,
-        suppliers,
-        expenses,
-        accounts,
-        stockMovements,
-        employees,
-        profile,
-        quotations,
-        purchaseOrders,
-      });
+      // If user clicked manual "Backup to Sheets" on a browser without a full baseline yet,
+      // fetch the spreadsheet baseline once so only genuinely new or unsynced records are pushed.
+      if (!isAutoTrigger && !syncedHashesRef.current?.hasFullBaseline) {
+        const baselineRes = await fetchAllFromSheets(targetUrl);
+        if (baselineRes.success && baselineRes.data) {
+          const remoteHashes = buildHashesMapFromData({
+            products: Array.isArray(baselineRes.data.products) ? baselineRes.data.products.map(normalizeProduct) : [],
+            sales: Array.isArray(baselineRes.data.sales) ? baselineRes.data.sales : [],
+            customers: Array.isArray(baselineRes.data.customers) ? baselineRes.data.customers : [],
+            suppliers: Array.isArray(baselineRes.data.suppliers) ? baselineRes.data.suppliers : [],
+            expenses: Array.isArray(baselineRes.data.expenses) ? baselineRes.data.expenses : [],
+            accounts: Array.isArray(baselineRes.data.accounts) ? baselineRes.data.accounts : [],
+            stockMovements: Array.isArray(baselineRes.data.stockMovements) ? baselineRes.data.stockMovements : [],
+            employees: Array.isArray(baselineRes.data.employees) ? baselineRes.data.employees.map(normalizeEmployee) : [],
+            quotations: Array.isArray(baselineRes.data.quotations) ? baselineRes.data.quotations.map(normalizeQuotation) : [],
+            purchaseOrders: Array.isArray(baselineRes.data.purchaseOrders)
+              ? baselineRes.data.purchaseOrders.map(normalizePurchaseOrder)
+              : [],
+            profile: baselineRes.data.profile,
+          });
+          syncedHashesRef.current = remoteHashes;
+          saveSyncedHashesToStorage(remoteHashes);
+        } else if (countDirtyDelta(dirtyDeltaRef.current) === 0) {
+          setSheetsSyncStatus('error');
+          setSyncError(baselineRes.message || 'Failed to verify spreadsheet baseline.');
+          refreshQuotaStats();
+          return false;
+        }
+      }
+
+      const snapshot = latestDataRef.current;
+      const dirty = dirtyDeltaRef.current;
+      const baseline = syncedHashesRef.current;
+
+      const deltaPayload: SheetsDeltaPayload = {
+        upserts: {},
+        deletes: {},
+      };
+      const pushedUpsertHashes: Partial<Record<SheetsDeltaCollectionKey, Record<string, string>>> = {};
+      const pushedDeleteIds: Partial<Record<SheetsDeltaCollectionKey, string[]>> = {};
+      let pushedProfileHash: string | null = null;
+      let hasChangesToPush = false;
+
+      for (const key of DELTA_COLLECTION_KEYS) {
+        const items = (snapshot[key] || []) as any[];
+        const itemMap = new Map<string, any>();
+        for (const item of items) {
+          if (item && item.id !== undefined && item.id !== null) {
+            itemMap.set(String(item.id), item);
+          }
+        }
+
+        const dirtyUpsertIds = new Set<string>(dirty.upserts[key] || []);
+        const dirtyDeleteIds = new Set<string>(dirty.deletes[key] || []);
+        const colBaseline = baseline?.[key];
+
+        // On manual sync with a full baseline, also catch any unsynced/modified records not yet in baseline
+        if (!isAutoTrigger && baseline?.hasFullBaseline) {
+          for (const [id, item] of itemMap.entries()) {
+            const currentHash = canonicalRecordHash(key, item);
+            if (!colBaseline || colBaseline[id] !== currentHash) {
+              dirtyUpsertIds.add(id);
+            }
+          }
+        }
+
+        const upsertRecords: any[] = [];
+        const upsertHashMap: Record<string, string> = {};
+        for (const id of dirtyUpsertIds) {
+          if (dirtyDeleteIds.has(id)) continue;
+          const record = itemMap.get(id);
+          if (!record) continue;
+          const currentHash = canonicalRecordHash(key, record);
+          if (colBaseline && colBaseline[id] === currentHash) {
+            continue;
+          }
+          upsertRecords.push(record);
+          upsertHashMap[id] = currentHash;
+        }
+
+        const deleteIdList = Array.from(dirtyDeleteIds);
+
+        if (upsertRecords.length > 0) {
+          (deltaPayload.upserts as any)[key] = upsertRecords;
+          pushedUpsertHashes[key] = upsertHashMap;
+          hasChangesToPush = true;
+        }
+        if (deleteIdList.length > 0) {
+          deltaPayload.deletes[key] = deleteIdList;
+          pushedDeleteIds[key] = deleteIdList;
+          hasChangesToPush = true;
+        }
+      }
+
+      const currentProfileHash = canonicalRecordHash('profile', snapshot.profile);
+      const shouldPushProfile =
+        dirty.profile
+          ? !baseline?.profile || baseline.profile !== currentProfileHash
+          : !isAutoTrigger && Boolean(baseline?.hasFullBaseline) && baseline?.profile !== currentProfileHash;
+
+      if (shouldPushProfile) {
+        deltaPayload.profile = snapshot.profile;
+        pushedProfileHash = currentProfileHash;
+        hasChangesToPush = true;
+      }
+
+      // If everything is already in sync with the spreadsheet, skip unnecessary network write
+      if (!hasChangesToPush) {
+        dirtyDeltaRef.current = createEmptyDirtyDelta();
+        saveDirtyDeltaToStorage(dirtyDeltaRef.current);
+        pendingChangesRef.current = 0;
+        setPendingChangesCount(0);
+        setSheetsSyncStatus('connected');
+        setSyncError(null);
+        refreshQuotaStats();
+        return true;
+      }
+
+      let res = await pushDeltaToSheets(targetUrl, deltaPayload);
+
+      // Compatibility fallback only if the deployed Apps Script has not yet been updated with syncDelta
+      if (!res.success && res.unsupportedAction) {
+        const fullRes = await pushAllToSheets(targetUrl, {
+          products: snapshot.products,
+          sales: snapshot.sales,
+          customers: snapshot.customers,
+          suppliers: snapshot.suppliers,
+          expenses: snapshot.expenses,
+          accounts: snapshot.accounts,
+          stockMovements: snapshot.stockMovements,
+          employees: snapshot.employees,
+          profile: snapshot.profile,
+          quotations: snapshot.quotations,
+          purchaseOrders: snapshot.purchaseOrders,
+        });
+        if (fullRes.success) {
+          const updatedHashes = buildHashesMapFromData(snapshot);
+          syncedHashesRef.current = updatedHashes;
+          saveSyncedHashesToStorage(updatedHashes);
+          dirtyDeltaRef.current = createEmptyDirtyDelta();
+          saveDirtyDeltaToStorage(dirtyDeltaRef.current);
+          pendingChangesRef.current = 0;
+          setPendingChangesCount(0);
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setLastSyncedAt(nowStr);
+          localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
+          setSheetsSyncStatus('connected');
+          setSyncError(null);
+          refreshQuotaStats();
+          return true;
+        }
+        res = fullRes;
+      }
+
       if (res.success) {
+        // Update synced baseline ONLY for the records actually pushed
+        const nextBaseline: SyncedHashesMap = syncedHashesRef.current ? { ...syncedHashesRef.current } : {};
+        for (const key of DELTA_COLLECTION_KEYS) {
+          const pushedCol = pushedUpsertHashes[key];
+          const deletedCol = pushedDeleteIds[key];
+          if (pushedCol || deletedCol) {
+            const colMap = { ...(nextBaseline[key] || {}) };
+            if (pushedCol) {
+              Object.assign(colMap, pushedCol);
+            }
+            if (deletedCol) {
+              for (const delId of deletedCol) {
+                delete colMap[delId];
+              }
+            }
+            nextBaseline[key] = colMap;
+          }
+        }
+        if (pushedProfileHash !== null) {
+          nextBaseline.profile = pushedProfileHash;
+        }
+        syncedHashesRef.current = nextBaseline;
+        saveSyncedHashesToStorage(nextBaseline);
+
+        // Prune only the pushed mutations from dirtyDeltaRef (preserve any edits made while request was in flight)
+        const latestSnapshot = latestDataRef.current;
+        const nextDirty = createEmptyDirtyDelta();
+        for (const key of DELTA_COLLECTION_KEYS) {
+          const latestItems = new Map<string, any>(
+            ((latestSnapshot[key] || []) as any[])
+              .filter((x) => x && x.id !== undefined && x.id !== null)
+              .map((x) => [String(x.id), x])
+          );
+          const pushedCol = pushedUpsertHashes[key] || {};
+          const deletedSet = new Set(pushedDeleteIds[key] || []);
+
+          for (const id of dirtyDeltaRef.current.upserts[key]) {
+            if (pushedCol[id]) {
+              const latestRec = latestItems.get(id);
+              if (latestRec && canonicalRecordHash(key, latestRec) === pushedCol[id]) {
+                continue;
+              }
+            }
+            nextDirty.upserts[key].push(id);
+          }
+
+          for (const id of dirtyDeltaRef.current.deletes[key]) {
+            if (deletedSet.has(id)) continue;
+            nextDirty.deletes[key].push(id);
+          }
+        }
+
+        if (dirtyDeltaRef.current.profile) {
+          if (
+            pushedProfileHash !== null &&
+            canonicalRecordHash('profile', latestSnapshot.profile) === pushedProfileHash
+          ) {
+            nextDirty.profile = false;
+          } else {
+            nextDirty.profile = true;
+          }
+        }
+
+        dirtyDeltaRef.current = nextDirty;
+        saveDirtyDeltaToStorage(nextDirty);
+        const remainingCount = countDirtyDelta(nextDirty);
+        pendingChangesRef.current = remainingCount;
+        setPendingChangesCount(remainingCount);
+
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         setLastSyncedAt(nowStr);
         localStorage.setItem(`${STORAGE_PREFIX}lastSyncedAt`, nowStr);
         setSheetsSyncStatus('connected');
         setSyncError(null);
-        pendingChangesRef.current = 0;
-        setPendingChangesCount(0);
         refreshQuotaStats();
         return true;
       } else {
@@ -806,46 +1178,82 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (pendingPushQueuedRef.current) {
         pendingPushQueuedRef.current = false;
         setTimeout(() => {
-          pushToSheetsNow();
+          executeSheetsPush(true);
         }, 500);
       }
     }
   };
 
-  // Triggered on mutations to queue batch sync without exhausting API quotas
-  const markPendingChange = () => {
-    pendingChangesRef.current += 1;
-    setPendingChangesCount(pendingChangesRef.current);
+  const pushToSheetsNow = (): Promise<boolean> => executeSheetsPush(false);
 
-    if (syncStrategy === 'smart_batch' && sheetsUrl) {
+  // Triggered explicitly on Save, Update, and Delete actions across the app with exact changed IDs
+  const triggerSheetsBackup = (spec?: {
+    upserts?: Partial<Record<SheetsDeltaCollectionKey, string[]>>;
+    deletes?: Partial<Record<SheetsDeltaCollectionKey, string[]>>;
+    profile?: boolean;
+  }) => {
+    if (isSyncingFromSheetsRef.current || isSyncingFromFirestoreRef.current) {
+      return;
+    }
+
+    if (spec) {
+      const nextDirty = dirtyDeltaRef.current;
+      if (spec.upserts) {
+        for (const [col, ids] of Object.entries(spec.upserts) as [SheetsDeltaCollectionKey, string[] | undefined][]) {
+          if (!ids || ids.length === 0) continue;
+          const delSet = new Set(nextDirty.deletes[col]);
+          const upSet = new Set(nextDirty.upserts[col]);
+          for (const rawId of ids) {
+            const id = String(rawId || '').trim();
+            if (!id) continue;
+            delSet.delete(id);
+            upSet.add(id);
+          }
+          nextDirty.deletes[col] = Array.from(delSet);
+          nextDirty.upserts[col] = Array.from(upSet);
+        }
+      }
+      if (spec.deletes) {
+        for (const [col, ids] of Object.entries(spec.deletes) as [SheetsDeltaCollectionKey, string[] | undefined][]) {
+          if (!ids || ids.length === 0) continue;
+          const upSet = new Set(nextDirty.upserts[col]);
+          const delSet = new Set(nextDirty.deletes[col]);
+          for (const rawId of ids) {
+            const id = String(rawId || '').trim();
+            if (!id) continue;
+            upSet.delete(id);
+            delSet.add(id);
+          }
+          nextDirty.upserts[col] = Array.from(upSet);
+          nextDirty.deletes[col] = Array.from(delSet);
+        }
+      }
+      if (spec.profile) {
+        nextDirty.profile = true;
+      }
+      saveDirtyDeltaToStorage(nextDirty);
+      const count = countDirtyDelta(nextDirty);
+      pendingChangesRef.current = count;
+      setPendingChangesCount(count);
+    }
+
+    if (syncStrategyRef.current === 'smart_batch' && sheetsUrlRef.current?.trim()) {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      // Debounce window of 25 seconds: collapses multiple quick sales/edits into 1 single call
+      // Short 1.2s coalescing window so multi-step saves (e.g. Sale + Stock + Customer) push in 1 single incremental backup call
       debounceTimerRef.current = setTimeout(() => {
-        pushToSheetsNow();
-      }, 25000);
+        executeSheetsPush(true);
+      }, 1200);
     }
   };
 
-  // Watch state changes and trigger smart debounced queuing (skip initial load or sheets/firestore pulls)
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    if (isSyncingFromSheetsRef.current || isSyncOperationActiveRef.current || isSyncingFromFirestoreRef.current) {
-      return;
-    }
-    markPendingChange();
-  }, [products, sales, customers, suppliers, expenses, employees, accounts, stockMovements, profile, quotations, purchaseOrders]);
-
-  // Real-time synchronization with Firebase Firestore (Primary Database)
+  // Boot-time Firebase Firestore Listeners: Only profile & employees (for login/branding) to conserve read quota
   useEffect(() => {
     let unsubs: (() => void)[] = [];
     let isMounted = true;
 
-    async function initFirestore() {
+    async function initBootFirestore() {
       try {
         setFirebaseSyncStatus('connecting');
         const isOnline = await testConnection();
@@ -854,7 +1262,6 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setFirebaseError('Firebase connection check failed. Client may be offline.');
         }
 
-        // Real-time listener for Business Profile
         const unsubProfile = subscribeToDocument<BusinessProfile>(
           COLLECTIONS.BUSINESS_PROFILE,
           'main',
@@ -874,119 +1281,6 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
         unsubs.push(unsubProfile);
 
-        // Real-time listener for Products
-        const unsubProducts = subscribeToCollection<Product>(
-          COLLECTIONS.PRODUCTS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setProducts(items.map(normalizeProduct));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubProducts);
-
-        // Real-time listener for Sales
-        const unsubSales = subscribeToCollection<Sale>(
-          COLLECTIONS.SALES,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setSales(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubSales);
-
-        // Real-time listener for Quotations
-        const unsubQuotations = subscribeToCollection<Quotation>(
-          COLLECTIONS.QUOTATIONS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setQuotations(items.map(normalizeQuotation).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubQuotations);
-
-        // Real-time listener for Purchase Orders
-        const unsubPOs = subscribeToCollection<PurchaseOrder>(
-          COLLECTIONS.PURCHASE_ORDERS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setPurchaseOrders(items.map(normalizePurchaseOrder).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubPOs);
-
-        // Real-time listener for Customers
-        const unsubCustomers = subscribeToCollection<Customer>(
-          COLLECTIONS.CUSTOMERS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setCustomers(items);
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubCustomers);
-
-        // Real-time listener for Suppliers
-        const unsubSuppliers = subscribeToCollection<Supplier>(
-          COLLECTIONS.SUPPLIERS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setSuppliers(items);
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubSuppliers);
-
-        // Real-time listener for Expenses
-        const unsubExpenses = subscribeToCollection<Expense>(
-          COLLECTIONS.EXPENSES,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setExpenses(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubExpenses);
-
-        // Real-time listener for Employees
         const unsubEmployees = subscribeToCollection<Employee>(
           COLLECTIONS.EMPLOYEES,
           (items) => {
@@ -1002,38 +1296,6 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
         unsubs.push(unsubEmployees);
 
-        // Real-time listener for Accounts
-        const unsubAccounts = subscribeToCollection<Account>(
-          COLLECTIONS.ACCOUNTS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setAccounts(items);
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubAccounts);
-
-        // Real-time listener for Stock Movements
-        const unsubStock = subscribeToCollection<StockMovement>(
-          COLLECTIONS.STOCK_MOVEMENTS,
-          (items) => {
-            if (!isMounted) return;
-            if (items.length > 0) {
-              isSyncingFromFirestoreRef.current = true;
-              setStockMovements(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-              setTimeout(() => {
-                isSyncingFromFirestoreRef.current = false;
-              }, 300);
-            }
-          }
-        );
-        unsubs.push(unsubStock);
-
         if (isMounted) {
           setFirebaseSyncStatus('connected');
           setFirebaseError(null);
@@ -1048,7 +1310,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
-    initFirestore();
+    initBootFirestore();
 
     return () => {
       isMounted = false;
@@ -1060,49 +1322,202 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
+  // Authenticated-session Firebase Firestore Listeners: Only subscribe to operational collections when a staff user is signed in
+  const isAuthenticatedUser = Boolean(currentUser);
+  useEffect(() => {
+    if (!isAuthenticatedUser) return;
+
+    let unsubs: (() => void)[] = [];
+    let isMounted = true;
+
+    try {
+      const unsubProducts = subscribeToCollection<Product>(
+        COLLECTIONS.PRODUCTS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setProducts(items.map(normalizeProduct));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubProducts);
+
+      const unsubSales = subscribeToCollection<Sale>(
+        COLLECTIONS.SALES,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setSales(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubSales);
+
+      const unsubQuotations = subscribeToCollection<Quotation>(
+        COLLECTIONS.QUOTATIONS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setQuotations(items.map(normalizeQuotation).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubQuotations);
+
+      const unsubPOs = subscribeToCollection<PurchaseOrder>(
+        COLLECTIONS.PURCHASE_ORDERS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setPurchaseOrders(items.map(normalizePurchaseOrder).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubPOs);
+
+      const unsubCustomers = subscribeToCollection<Customer>(
+        COLLECTIONS.CUSTOMERS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setCustomers(items);
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubCustomers);
+
+      const unsubSuppliers = subscribeToCollection<Supplier>(
+        COLLECTIONS.SUPPLIERS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setSuppliers(items);
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubSuppliers);
+
+      const unsubExpenses = subscribeToCollection<Expense>(
+        COLLECTIONS.EXPENSES,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setExpenses(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubExpenses);
+
+      const unsubAccounts = subscribeToCollection<Account>(
+        COLLECTIONS.ACCOUNTS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setAccounts(items);
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubAccounts);
+
+      const unsubStock = subscribeToCollection<StockMovement>(
+        COLLECTIONS.STOCK_MOVEMENTS,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0) {
+            isSyncingFromFirestoreRef.current = true;
+            setStockMovements(items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubStock);
+
+      if (isMounted) {
+        setFirebaseSyncStatus('connected');
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setFirebaseLastSyncedAt(nowStr);
+      }
+    } catch (err: any) {
+      if (isMounted) {
+        setFirebaseSyncStatus('error');
+        setFirebaseError(err.message || 'Failed to sync operational collections');
+      }
+    }
+
+    return () => {
+      isMounted = false;
+      unsubs.forEach((unsub) => {
+        try {
+          unsub();
+        } catch {}
+      });
+    };
+  }, [isAuthenticatedUser]);
+
   // Periodic interval sync when scheduled mode is chosen (syncs at most every 15 min if there are changes)
   useEffect(() => {
     if (syncStrategy !== 'interval_15m' || !sheetsUrl) return;
 
     const interval = setInterval(() => {
       if (pendingChangesRef.current > 0 && !isSyncOperationActiveRef.current) {
-        pushToSheetsNow();
+        executeSheetsPush(true);
       }
     }, 15 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, [syncStrategy, sheetsUrl]);
 
-  // Initial pull from sheets if URL is configured
-  useEffect(() => {
-    if (sheetsUrl && sheetsUrl.trim()) {
-      syncFromSheets();
-    }
-  }, []);
-
-  // Automatic self-healing reconnection listener when user regains internet
+  // Automatic reconnection push when user regains internet and has queued backups
   useEffect(() => {
     const handleOnline = () => {
-      if (sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current) {
-        if (pendingChangesRef.current > 0) {
-          pushToSheetsNow();
-        } else {
-          syncFromSheets();
-        }
+      if (sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current && pendingChangesRef.current > 0) {
+        executeSheetsPush(true);
       }
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
   }, [sheetsUrl]);
 
-  // Self-healing auto-retry on transient sync error: if error occurred but changes are pending, retry automatically
+  // Auto-retry queued backup push if a transient sync error occurred
   useEffect(() => {
-    if (sheetsSyncStatus === 'error' && sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current) {
+    if (sheetsSyncStatus === 'error' && sheetsUrl && sheetsUrl.trim() && !isSyncOperationActiveRef.current && pendingChangesRef.current > 0) {
       const autoRetryTimer = setTimeout(() => {
         if (pendingChangesRef.current > 0) {
-          pushToSheetsNow();
-        } else {
-          syncFromSheets();
+          executeSheetsPush(true);
         }
       }, 15000);
       return () => clearTimeout(autoRetryTimer);
@@ -1184,6 +1599,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       saveProfileToFirestore(updated).catch(console.error);
       return updated;
     });
+    triggerSheetsBackup({ profile: true });
   };
 
   // Helper for today's date checking (same year, month, day)
@@ -1342,26 +1758,32 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Save to Firebase Firestore (Main Database)
     saveSaleToFirestore(newSale).catch(console.error);
+    const soldProductIds: string[] = [];
     updatedProducts.forEach((p) => {
       if (saleData.items.some((i) => i.productId === p.id)) {
+        soldProductIds.push(p.id);
         saveProductToFirestore(p).catch(console.error);
       }
     });
     newStockMovements.forEach((sm) => {
       saveStockMovementToFirestore(sm).catch(console.error);
     });
+    let targetAccountIdForBackup: string | null = null;
     if (newSale.amountPaid > 0) {
       let targetAccountId = 'acc-cash';
       if (newSale.paymentMethod === 'bank_transfer') targetAccountId = 'acc-bank';
       else if (newSale.paymentMethod === 'pos_card') targetAccountId = 'acc-pos';
+      targetAccountIdForBackup = targetAccountId;
       const targetAcc = accounts.find((a) => a.id === targetAccountId);
       if (targetAcc) {
         saveAccountToFirestore({ ...targetAcc, balance: targetAcc.balance + newSale.amountPaid }).catch(console.error);
       }
     }
+    let customerIdForBackup: string | null = null;
     if (newSale.customerId) {
       const cust = customers.find((c) => c.id === newSale.customerId);
       if (cust) {
+        customerIdForBackup = cust.id;
         saveCustomerToFirestore({
           ...cust,
           outstandingDebt: newSale.balanceDue > 0 ? cust.outstandingDebt + newSale.balanceDue : cust.outstandingDebt,
@@ -1371,6 +1793,15 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
+    triggerSheetsBackup({
+      upserts: {
+        sales: [newSale.id],
+        ...(soldProductIds.length > 0 ? { products: soldProductIds } : {}),
+        ...(newStockMovements.length > 0 ? { stockMovements: newStockMovements.map((sm) => sm.id) } : {}),
+        ...(targetAccountIdForBackup ? { accounts: [targetAccountIdForBackup] } : {}),
+        ...(customerIdForBackup ? { customers: [customerIdForBackup] } : {}),
+      },
+    });
     return newSale;
   };
 
@@ -1426,24 +1857,30 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Delete and sync reversals to Firestore
     deleteSaleFromFirestore(saleId).catch(console.error);
+    const affectedProductIds: string[] = [];
     products.forEach((prod) => {
       const item = saleToDelete.items.find((i) => i.productId === prod.id);
       if (item) {
+        affectedProductIds.push(prod.id);
         saveProductToFirestore({ ...prod, stock: prod.stock + item.quantity }).catch(console.error);
       }
     });
+    let reversedAccountId: string | null = null;
     if (saleToDelete.amountPaid > 0) {
       let targetAccountId = 'acc-cash';
       if (saleToDelete.paymentMethod === 'bank_transfer') targetAccountId = 'acc-bank';
       else if (saleToDelete.paymentMethod === 'pos_card') targetAccountId = 'acc-pos';
+      reversedAccountId = targetAccountId;
       const targetAcc = accounts.find((a) => a.id === targetAccountId);
       if (targetAcc) {
         saveAccountToFirestore({ ...targetAcc, balance: Math.max(0, targetAcc.balance - saleToDelete.amountPaid) }).catch(console.error);
       }
     }
+    let reversedCustomerId: string | null = null;
     if (saleToDelete.balanceDue > 0 && saleToDelete.customerId) {
       const cust = customers.find((c) => c.id === saleToDelete.customerId);
       if (cust) {
+        reversedCustomerId = cust.id;
         saveCustomerToFirestore({
           ...cust,
           outstandingDebt: Math.max(0, cust.outstandingDebt - saleToDelete.balanceDue),
@@ -1452,6 +1889,16 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
+    triggerSheetsBackup({
+      upserts: {
+        ...(affectedProductIds.length > 0 ? { products: affectedProductIds } : {}),
+        ...(reversedAccountId ? { accounts: [reversedAccountId] } : {}),
+        ...(reversedCustomerId ? { customers: [reversedCustomerId] } : {}),
+      },
+      deletes: {
+        sales: [saleId],
+      },
+    });
     return true;
   };
 
@@ -1468,6 +1915,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setQuotations((prev) => [newQuotation, ...prev]);
     saveQuotationToFirestore(newQuotation).catch(console.error);
+    triggerSheetsBackup({ upserts: { quotations: [newQuotation.id] } });
     return newQuotation;
   };
 
@@ -1482,11 +1930,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return q;
       })
     );
+    triggerSheetsBackup({ upserts: { quotations: [id] } });
   };
 
   const deleteQuotation = (id: string): boolean => {
     setQuotations((prev) => prev.filter((q) => q.id !== id));
     deleteQuotationFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { quotations: [id] } });
     return true;
   };
 
@@ -1546,6 +1996,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setPurchaseOrders((prev) => [newPO, ...prev]);
     savePurchaseOrderToFirestore(newPO).catch(console.error);
+    triggerSheetsBackup({ upserts: { purchaseOrders: [newPO.id] } });
     return newPO;
   };
 
@@ -1560,11 +2011,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return po;
       })
     );
+    triggerSheetsBackup({ upserts: { purchaseOrders: [id] } });
   };
 
   const deletePurchaseOrder = (id: string): boolean => {
     setPurchaseOrders((prev) => prev.filter((po) => po.id !== id));
     deletePurchaseOrderFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { purchaseOrders: [id] } });
     return true;
   };
 
@@ -1591,6 +2044,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updatedAt: timestamp,
     });
 
+    let initSmId: string | null = null;
     if (newProduct.stock > 0) {
       const initSm: StockMovement = {
         id: `sm-init-${Date.now()}`,
@@ -1604,12 +2058,19 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         timestamp,
         performedBy: 'Staff',
       };
+      initSmId = initSm.id;
       setStockMovements((prev) => [initSm, ...prev]);
       saveStockMovementToFirestore(initSm).catch(console.error);
     }
 
     setProducts((prev) => [newProduct, ...prev]);
     saveProductToFirestore(newProduct).catch(console.error);
+    triggerSheetsBackup({
+      upserts: {
+        products: [newProduct.id],
+        ...(initSmId ? { stockMovements: [initSmId] } : {}),
+      },
+    });
     return newProduct;
   };
 
@@ -1628,6 +2089,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return p;
       })
     );
+    triggerSheetsBackup({ upserts: { products: [id] } });
   };
 
   const restockProduct = (
@@ -1656,7 +2118,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     saveProductToFirestore(updatedProd).catch(console.error);
 
     const newSm: StockMovement = {
-      id: `sm-restock-${Date.now()}`,
+      id: `sm-restock-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
       productId,
       productName: target.name,
       type: 'purchase',
@@ -1687,12 +2149,20 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         })
       );
     }
+    triggerSheetsBackup({
+      upserts: {
+        products: [productId],
+        stockMovements: [newSm.id],
+        ...(supplierId ? { suppliers: [supplierId] } : {}),
+      },
+    });
   };
 
   const deleteProduct = (id: string): boolean => {
     if (!permissions.canManageInventory) return false;
     setProducts((prev) => prev.filter((p) => p.id !== id));
     deleteProductFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { products: [id] } });
     return true;
   };
 
@@ -1704,6 +2174,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setCustomers((prev) => [newCustomer, ...prev]);
     saveCustomerToFirestore(newCustomer).catch(console.error);
+    triggerSheetsBackup({ upserts: { customers: [newCustomer.id] } });
     return newCustomer;
   };
 
@@ -1718,6 +2189,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return c;
       })
     );
+    triggerSheetsBackup({ upserts: { customers: [id] } });
   };
 
   const recordDebtPayment = (
@@ -1772,6 +2244,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       },
       ...prev,
     ]);
+    triggerSheetsBackup({ upserts: { customers: [customerId], accounts: [accountId] } });
   };
 
   const addSupplier = (supplierData: Omit<Supplier, 'id' | 'totalPurchased'>): Supplier => {
@@ -1782,6 +2255,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setSuppliers((prev) => [newSupplier, ...prev]);
     saveSupplierToFirestore(newSupplier).catch(console.error);
+    triggerSheetsBackup({ upserts: { suppliers: [newSupplier.id] } });
     return newSupplier;
   };
 
@@ -1796,6 +2270,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return s;
       })
     );
+    triggerSheetsBackup({ upserts: { suppliers: [id] } });
   };
 
   const paySupplier = (
@@ -1849,6 +2324,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setExpenses((prev) => [newExpense, ...prev]);
     saveExpenseToFirestore(newExpense).catch(console.error);
+    triggerSheetsBackup({
+      upserts: {
+        suppliers: [supplierId],
+        accounts: [accountId],
+        expenses: [newExpense.id],
+      },
+    });
   };
 
   const addExpense = (expenseData: Omit<Expense, 'id' | 'timestamp'>): Expense => {
@@ -1889,6 +2371,12 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setExpenses((prev) => [newExpense, ...prev]);
     saveExpenseToFirestore(newExpense).catch(console.error);
+    triggerSheetsBackup({
+      upserts: {
+        expenses: [newExpense.id],
+        accounts: [newExpense.accountId],
+      },
+    });
     return newExpense;
   };
 
@@ -1911,6 +2399,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     deleteExpenseFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({
+      upserts: { accounts: [exp.accountId] },
+      deletes: { expenses: [id] },
+    });
     return true;
   };
 
@@ -1951,6 +2443,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       },
       ...prev,
     ]);
+    triggerSheetsBackup({ upserts: { accounts: [fromAccountId, toAccountId] } });
   };
 
   const addAccount = (accountData: Omit<Account, 'id'>): Account => {
@@ -1960,6 +2453,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setAccounts((prev) => [...prev, newAccount]);
     saveAccountToFirestore(newAccount).catch(console.error);
+    triggerSheetsBackup({ upserts: { accounts: [newAccount.id] } });
     return newAccount;
   };
 
@@ -1974,12 +2468,14 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return acc;
       })
     );
+    triggerSheetsBackup({ upserts: { accounts: [id] } });
   };
 
   const deleteAccount = (id: string): boolean => {
     if (accounts.length <= 1) return false;
     setAccounts((prev) => prev.filter((acc) => acc.id !== id));
     deleteAccountFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { accounts: [id] } });
     return true;
   };
 
@@ -2005,10 +2501,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setEmployees((prev) => [...prev, newEmp]);
     saveEmployeeToFirestore(newEmp).catch(console.error);
+    triggerSheetsBackup({ upserts: { employees: [newEmp.id] } });
     return newEmp;
   };
 
-  const updateEmployee = (id: string, updates: Partial<Employee>) => {
+  const updateEmployee = (id: string, updates: Partial<Employee>, skipSheetsBackup = false) => {
     setEmployees((prev) =>
       prev.map((emp) => {
         if (emp.id === id) {
@@ -2059,6 +2556,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return emp;
       })
     );
+    if (!skipSheetsBackup) {
+      triggerSheetsBackup({ upserts: { employees: [id] } });
+    }
   };
 
   const deleteEmployee = (id: string): boolean => {
@@ -2077,6 +2577,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setEmployees((prev) => prev.filter((e) => e.id !== id));
     deleteEmployeeFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { employees: [id] } });
     return true;
   };
 
@@ -2154,7 +2655,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(`${STORAGE_PREFIX}role`, updatedUser.role);
     setIsScreenLocked(false);
     setIsLoginModalOpen(false);
-    updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin });
+    const lastLoginTs = matched.lastLogin ? new Date(matched.lastLogin).getTime() : 0;
+    if (!lastLoginTs || Date.now() - lastLoginTs > 15 * 60 * 1000) {
+      updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin }, true);
+    }
 
     return { success: true };
   };
@@ -2224,7 +2728,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(`${STORAGE_PREFIX}role`, updatedUser.role);
     setIsScreenLocked(false);
     setIsLoginModalOpen(false);
-    updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin });
+    const lastLoginTsCred = matched.lastLogin ? new Date(matched.lastLogin).getTime() : 0;
+    if (!lastLoginTsCred || Date.now() - lastLoginTsCred > 15 * 60 * 1000) {
+      updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin }, true);
+    }
 
     return { success: true };
   };
@@ -2244,7 +2751,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(`${STORAGE_PREFIX}role`, updatedUser.role);
     setIsScreenLocked(false);
     setIsLoginModalOpen(false);
-    updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin });
+    const lastLoginTsSwitch = matched.lastLogin ? new Date(matched.lastLogin).getTime() : 0;
+    if (!lastLoginTsSwitch || Date.now() - lastLoginTsSwitch > 15 * 60 * 1000) {
+      updateEmployee(updatedUser.id, { lastLogin: updatedUser.lastLogin }, true);
+    }
     return true;
   };
 
@@ -2294,6 +2804,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return emp;
       })
     );
+    triggerSheetsBackup({ upserts: { employees: [employeeId] } });
   };
 
   const markAlertRead = (id: string) => {

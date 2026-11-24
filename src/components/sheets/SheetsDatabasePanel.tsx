@@ -352,9 +352,9 @@ export const SheetsDatabasePanel: React.FC = () => {
                   ? 'bg-white text-indigo-700 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="Automatically backs up to Google Sheets in batches when records change"
+              title="Automatically backs up to Google Sheets on Save, Update, and Delete"
             >
-              {language === 'pt' ? 'Automático' : 'Smart Auto'}
+              {language === 'pt' ? 'Ao Salvar / Atualizar / Excluir' : 'On Save / Update / Delete'}
             </button>
             <button
               type="button"
