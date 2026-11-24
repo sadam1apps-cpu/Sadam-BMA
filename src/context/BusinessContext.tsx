@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import {
   Account,
+  BankDetail,
   BusinessProfile,
   Customer,
   Employee,
@@ -268,9 +269,31 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return [];
   });
 
+  const normalizeBankDetails = (raw: any): BankDetail[] => {
+    let arr = raw;
+    if (typeof raw === 'string' && raw.trim()) {
+      try {
+        arr = JSON.parse(raw);
+      } catch {
+        arr = [];
+      }
+    }
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((b) => b && typeof b === 'object')
+      .map((b, idx) => ({
+        id: b.id ? String(b.id) : `bank-${idx + 1}`,
+        bankName: b.bankName !== undefined && b.bankName !== null ? String(b.bankName).trim() : '',
+        accountNumber: b.accountNumber !== undefined && b.accountNumber !== null ? String(b.accountNumber).trim() : '',
+        nib: b.nib !== undefined && b.nib !== null ? String(b.nib).trim() : '',
+      }));
+  };
+
   const normalizeQuotation = (q: any): Quotation => ({
     ...q,
     validUntil: formatDateOnly(q.validUntil),
+    includeBankDetails: Boolean(q.includeBankDetails === true || q.includeBankDetails === 'true'),
+    bankDetails: q.bankDetails ? normalizeBankDetails(q.bankDetails) : [],
   });
 
   const normalizePurchaseOrder = (po: any): PurchaseOrder => ({
@@ -688,7 +711,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           });
         }
         if (d.profile && typeof d.profile === 'object') {
-          setProfile((prev) => ({ ...prev, ...d.profile }));
+          setProfile((prev) => ({
+            ...prev,
+            ...d.profile,
+            bankDetails: d.profile?.bankDetails !== undefined ? normalizeBankDetails(d.profile.bankDetails) : prev.bankDetails,
+          }));
         }
 
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -838,6 +865,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...prev,
               ...docData,
               logo: docData.logo && docData.logo.trim() ? docData.logo : (prev.logo || initialBusinessProfile.logo),
+              bankDetails: docData.bankDetails !== undefined ? normalizeBankDetails(docData.bankDetails) : (prev.bankDetails || []),
             }));
             setTimeout(() => {
               isSyncingFromFirestoreRef.current = false;

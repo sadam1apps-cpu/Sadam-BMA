@@ -25,6 +25,13 @@ export interface RolePermissions {
 
 export type Language = 'en' | 'pt';
 
+export interface BankDetail {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  nib: string;
+}
+
 export interface BusinessProfile {
   name: string;
   businessName?: string;
@@ -38,6 +45,7 @@ export interface BusinessProfile {
   invoiceFooter?: string;
   language?: Language;
   logo?: string; // Base64 data URL or image URL
+  bankDetails?: BankDetail[];
 }
 
 export interface Product {
@@ -124,6 +132,8 @@ export interface Quotation {
   timestamp: string;
   cashierName: string;
   notes?: string;
+  includeBankDetails?: boolean;
+  bankDetails?: BankDetail[];
 }
 
 export interface PurchaseOrderItem {

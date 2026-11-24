@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { Store, DollarSign, Check, Database, Globe, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Store, DollarSign, Check, Database, Globe, Upload, Trash2, Image as ImageIcon, Landmark, Plus } from 'lucide-react';
 import { SheetsDatabasePanel } from '../sheets/SheetsDatabasePanel';
-import { Language } from '../../types';
+import { BankDetail, Language } from '../../types';
 
 export const SettingsView: React.FC = () => {
   const { profile, updateProfile, currentRole, permissions, language, setLanguage, t } = useBusiness();
@@ -19,6 +19,7 @@ export const SettingsView: React.FC = () => {
   const [invoiceFooter, setInvoiceFooter] = useState(profile.invoiceFooter || 'Thank you for your business!');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
   const [logo, setLogo] = useState<string>(profile.logo || '');
+  const [bankDetails, setBankDetails] = useState<BankDetail[]>(profile.bankDetails || []);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'database' | 'store' | 'billing' | 'language'>(
@@ -36,8 +37,31 @@ export const SettingsView: React.FC = () => {
     setInvoiceFooter(profile.invoiceFooter || 'Thank you for your business!');
     setSelectedLanguage(language);
     setLogo(profile.logo || '');
+    setBankDetails(profile.bankDetails || []);
     setLogoError(null);
   }, [profile, language]);
+
+  const handleAddBankDetail = () => {
+    setBankDetails((prev) => [
+      ...prev,
+      {
+        id: `bank-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        bankName: '',
+        accountNumber: '',
+        nib: '',
+      },
+    ]);
+  };
+
+  const handleUpdateBankDetail = (id: string, field: keyof Omit<BankDetail, 'id'>, value: string) => {
+    setBankDetails((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, [field]: value } : b))
+    );
+  };
+
+  const handleRemoveBankDetail = (id: string) => {
+    setBankDetails((prev) => prev.filter((b) => b.id !== id));
+  };
 
   const handleLogoFile = (file: File) => {
     setLogoError(null);
@@ -117,6 +141,15 @@ export const SettingsView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLanguage(selectedLanguage);
+    const cleanedBankDetails = bankDetails
+      .map((b) => ({
+        id: b.id || `bank-${Date.now()}`,
+        bankName: b.bankName.trim(),
+        accountNumber: b.accountNumber.trim(),
+        nib: b.nib.trim(),
+      }))
+      .filter((b) => b.bankName || b.accountNumber || b.nib);
+    setBankDetails(cleanedBankDetails);
     updateProfile({
       name: businessName,
       businessName,
@@ -129,6 +162,7 @@ export const SettingsView: React.FC = () => {
       invoiceFooter,
       language: selectedLanguage,
       logo,
+      bankDetails: cleanedBankDetails,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -472,6 +506,86 @@ export const SettingsView: React.FC = () => {
                     onChange={(e) => setInvoiceFooter(e.target.value)}
                     className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none"
                   />
+                </div>
+
+                {/* Compact Bank Details for Quotations */}
+                <div className="col-span-2 pt-2.5 mt-1 border-t border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Landmark className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 truncate">
+                        {language === 'pt' ? 'Dados Bancários (Orçamentos)' : 'Bank Details (Quotations)'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddBankDetail}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>
+                        {bankDetails.length === 0
+                          ? (language === 'pt' ? 'Adicionar Banco' : 'Add Bank')
+                          : (language === 'pt' ? 'Adicionar Outro Banco' : 'Add Another Bank')}
+                      </span>
+                    </button>
+                  </div>
+
+                  {bankDetails.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg px-2.5 py-1.5">
+                      {language === 'pt'
+                        ? 'Sem dados bancários. Adicione uma conta para poder incluí-la opcionalmente nos orçamentos.'
+                        : 'No bank accounts saved. Add one to optionally include bank details on quotations.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="hidden sm:grid sm:grid-cols-[1fr_1fr_1.2fr_28px] gap-1.5 px-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span>{language === 'pt' ? 'Banco' : 'Bank Name'}</span>
+                        <span>{language === 'pt' ? 'Conta:' : 'Account:'}</span>
+                        <span>NIB</span>
+                        <span />
+                      </div>
+                      {bankDetails.map((bank) => (
+                        <div
+                          key={bank.id}
+                          className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1.2fr_28px] gap-1.5 items-center bg-slate-50/80 border border-slate-200 rounded-lg p-1.5"
+                        >
+                          <input
+                            type="text"
+                            value={bank.bankName}
+                            onChange={(e) => handleUpdateBankDetail(bank.id, 'bankName', e.target.value)}
+                            placeholder={language === 'pt' ? 'Nome do Banco' : 'Bank Name'}
+                            aria-label="Bank Name"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          />
+                          <input
+                            type="text"
+                            value={bank.accountNumber}
+                            onChange={(e) => handleUpdateBankDetail(bank.id, 'accountNumber', e.target.value)}
+                            placeholder={language === 'pt' ? 'Conta' : 'Account'}
+                            aria-label="Account"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          />
+                          <input
+                            type="text"
+                            value={bank.nib}
+                            onChange={(e) => handleUpdateBankDetail(bank.id, 'nib', e.target.value)}
+                            placeholder="NIB"
+                            aria-label="NIB"
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono text-slate-900 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBankDetail(bank.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer justify-self-end sm:justify-self-center"
+                            title={language === 'pt' ? 'Remover banco' : 'Remove bank'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

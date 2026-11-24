@@ -73,7 +73,13 @@ export function cleanForFirestore<T extends Record<string, any>>(obj: T): T {
       }
       continue;
     }
-    if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+    if (Array.isArray(val)) {
+      result[key] = val.map((item) =>
+        item !== null && typeof item === 'object' && !(item instanceof Date)
+          ? cleanForFirestore(item)
+          : item
+      );
+    } else if (val !== null && typeof val === 'object' && !(val instanceof Date)) {
       result[key] = cleanForFirestore(val);
     } else {
       result[key] = val;

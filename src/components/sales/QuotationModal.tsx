@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useBusiness } from '../../context/BusinessContext';
-import { Quotation, Sale } from '../../types';
+import { BankDetail, Quotation, Sale } from '../../types';
 import {
   X,
   Plus,
@@ -47,6 +47,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     customers,
     currentUser,
     addQuotation,
+    updateQuotation,
     convertQuotationToSale,
     currentRole,
     language,
@@ -89,8 +90,32 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const [taxPercent, setTaxPercent] = useState<number>(profile.taxRate || 0);
   const [validDays, setValidDays] = useState<number>(15);
   const [notes, setNotes] = useState<string>('');
+  const [includeBankDetails, setIncludeBankDetails] = useState<boolean>(false);
+  const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
+  const [viewIncludeBankDetails, setViewIncludeBankDetails] = useState<boolean>(
+    Boolean(quotationToView?.includeBankDetails)
+  );
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
+  const configuredBankDetails = useMemo<BankDetail[]>(
+    () =>
+      (profile.bankDetails || []).filter(
+        (b) => b && (b.bankName?.trim() || b.accountNumber?.trim() || b.nib?.trim())
+      ),
+    [profile.bankDetails]
+  );
+
+  useEffect(() => {
+    setViewIncludeBankDetails(Boolean(quotationToView?.includeBankDetails));
+  }, [quotationToView?.id, quotationToView?.includeBankDetails]);
+
+  const effectiveViewBankDetails = useMemo<BankDetail[]>(() => {
+    const savedBanks = (quotationToView?.bankDetails || []).filter(
+      (b) => b && (b.bankName?.trim() || b.accountNumber?.trim() || b.nib?.trim())
+    );
+    return savedBanks.length > 0 ? savedBanks : configuredBankDetails;
+  }, [quotationToView?.bankDetails, configuredBankDetails]);
 
   // Categories list
   const categories = useMemo(() => {
@@ -289,6 +314,12 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       profile.name ||
       '';
 
+    const chosenBanks = includeBankDetails
+      ? configuredBankDetails.filter((b) =>
+          selectedBankIds.length > 0 ? selectedBankIds.includes(b.id) : true
+        )
+      : [];
+
     addQuotation({
       customerId: finalCustomerId,
       customerName: finalCustomerName,
@@ -304,6 +335,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       validUntil,
       cashierName: finalCashierName,
       notes: notes.trim() || undefined,
+      includeBankDetails: includeBankDetails && chosenBanks.length > 0,
+      bankDetails: chosenBanks,
     });
 
     handleClose();
@@ -318,6 +351,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     setShowWalkInDetails(false);
     setSelectedItems([]);
     setProductSearchTerm('');
+    setIncludeBankDetails(false);
+    setSelectedBankIds([]);
     setErrorMsg('');
     setActiveMobileTab('items');
     onClose();
@@ -531,6 +566,51 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         doc.setTextColor(100, 116, 139);
         doc.text(`${language === 'pt' ? 'Observações' : 'Notes'}: ${quotationToView.notes}`, margin, y);
         y += 6;
+      }
+
+      if (viewIncludeBankDetails && effectiveViewBankDetails.length > 0) {
+        const contentW = pageWidth - margin * 2;
+        const innerMaxW = contentW - 8;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+
+        const formattedBankLines: string[][] = effectiveViewBankDetails.map((bank) => {
+          const parts: string[] = [];
+          if (bank.bankName) parts.push(`${language === 'pt' ? 'Banco' : 'Bank Name'}: ${bank.bankName}`);
+          if (bank.accountNumber) parts.push(`${language === 'pt' ? 'Conta' : 'Account'}: ${bank.accountNumber}`);
+          if (bank.nib) parts.push(`NIB: ${bank.nib}`);
+          return doc.splitTextToSize(parts.join('   |   '), innerMaxW);
+        });
+
+        const totalLineCount = formattedBankLines.reduce((sum, lines) => sum + lines.length, 0);
+        const boxHeight = 8 + totalLineCount * 4 + 2;
+
+        if (y + boxHeight > 280) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(margin, y, contentW, boxHeight, 1.5, 1.5, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text(
+          language === 'pt' ? 'DADOS BANCÁRIOS' : 'BANK DETAILS',
+          margin + 4,
+          y + 4.8
+        );
+
+        let bankY = y + 9.2;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(30, 41, 59);
+        formattedBankLines.forEach((lines) => {
+          doc.text(lines, margin + 4, bankY);
+          bankY += lines.length * 4;
+        });
       }
 
       doc.save(`Quotation_${quotationToView.quotationNumber}.pdf`);
@@ -799,11 +879,47 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   <span className="font-bold text-slate-700">Notes:</span> {quotationToView.notes}
                 </div>
               )}
+
+              {/* Optional Bank Details at the Bottom of Quotation */}
+              {viewIncludeBankDetails && effectiveViewBankDetails.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[11px] space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    {language === 'pt' ? 'Dados Bancários' : 'Bank Details'}
+                  </div>
+                  <div className={`grid gap-1.5 ${effectiveViewBankDetails.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                    {effectiveViewBankDetails.map((bank, bIdx) => (
+                      <div
+                        key={bank.id || bIdx}
+                        className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-700 bg-white border border-slate-200/80 rounded-md px-2.5 py-1.5"
+                      >
+                        {bank.bankName && (
+                          <span>
+                            <span className="text-slate-500 font-medium">{language === 'pt' ? 'Banco' : 'Bank Name'}:</span>{' '}
+                            <strong className="text-slate-900">{bank.bankName}</strong>
+                          </span>
+                        )}
+                        {bank.accountNumber && (
+                          <span>
+                            <span className="text-slate-500 font-medium">{language === 'pt' ? 'Conta' : 'Account'}:</span>{' '}
+                            <span className="font-mono font-semibold text-slate-900">{bank.accountNumber}</span>
+                          </span>
+                        )}
+                        {bank.nib && (
+                          <span>
+                            <span className="text-slate-500 font-medium">NIB:</span>{' '}
+                            <span className="font-mono font-semibold text-slate-900">{bank.nib}</span>
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Actions Bar */}
             <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center flex-wrap gap-1.5">
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -822,6 +938,25 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   <Download className="w-3.5 h-3.5" />
                   <span>{isGeneratingPdf ? 'Generating...' : 'PDF'}</span>
                 </button>
+
+                {effectiveViewBankDetails.length > 0 && (
+                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer select-none no-print">
+                    <input
+                      type="checkbox"
+                      checked={viewIncludeBankDetails}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setViewIncludeBankDetails(checked);
+                        updateQuotation(quotationToView.id, {
+                          includeBankDetails: checked,
+                          bankDetails: effectiveViewBankDetails,
+                        });
+                      }}
+                      className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span>{language === 'pt' ? 'Dados Bancários' : 'Include Bank Details'}</span>
+                  </label>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -1515,6 +1650,66 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       onChange={(e) => setNotes(e.target.value)}
                       className="w-full p-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
+                  </div>
+
+                  {/* Optional Bank Details Toggle */}
+                  <div className="bg-white px-2.5 py-2 rounded-xl border border-slate-200 space-y-1.5">
+                    <label className="flex items-center justify-between gap-2 cursor-pointer select-none">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={includeBankDetails}
+                          disabled={configuredBankDetails.length === 0}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setIncludeBankDetails(checked);
+                            if (checked && selectedBankIds.length === 0) {
+                              setSelectedBankIds(configuredBankDetails.map((b) => b.id));
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
+                        />
+                        <span className="text-xs font-semibold text-slate-800 truncate">
+                          {language === 'pt' ? 'Incluir Dados Bancários' : 'Include Bank Details'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {configuredBankDetails.length > 0
+                          ? `${configuredBankDetails.length} ${configuredBankDetails.length === 1 ? (language === 'pt' ? 'banco' : 'bank') : (language === 'pt' ? 'bancos' : 'banks')}`
+                          : (language === 'pt' ? 'Adicionar em Definições' : 'Add in Settings')}
+                      </span>
+                    </label>
+                    {includeBankDetails && configuredBankDetails.length > 1 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
+                        {configuredBankDetails.map((bank) => {
+                          const checked = selectedBankIds.includes(bank.id);
+                          return (
+                            <label
+                              key={bank.id}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium cursor-pointer transition-colors ${
+                                checked
+                                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                  : 'bg-slate-50 border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedBankIds((prev) =>
+                                    prev.includes(bank.id)
+                                      ? prev.filter((id) => id !== bank.id)
+                                      : [...prev, bank.id]
+                                  );
+                                }}
+                                className="w-3 h-3 rounded border-slate-300 text-indigo-600"
+                              />
+                              <span className="truncate max-w-[130px]">{bank.bankName || bank.accountNumber}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Calculations Summary Box */}

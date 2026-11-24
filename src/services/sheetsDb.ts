@@ -20,7 +20,7 @@ import { formatDateOnly } from '../utils/dateFormat';
 
 export interface ColumnDefinition {
   name: string;
-  type: 'string' | 'number' | 'json' | 'date';
+  type: 'string' | 'number' | 'boolean' | 'json' | 'date';
   description: string;
   sample: string;
   required: boolean;
@@ -201,6 +201,7 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'taxRate', type: 'number', description: 'Sales tax rate percentage', sample: '5.0', required: true },
       { name: 'invoiceFooter', type: 'string', description: 'Printed bottom receipt message', sample: 'Thank you for shopping with us! Returns accepted within 14 days.', required: true },
       { name: 'logo', type: 'string', description: 'Business brand logo data URL or image link', sample: '', required: false },
+      { name: 'bankDetails', type: 'json', description: 'Optional bank account details for quotations', sample: '[]', required: false },
     ],
   },
   {
@@ -224,6 +225,8 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'timestamp', type: 'date', description: 'Issue date and time (ISO)', sample: '2026-09-30T10:00:00.000Z', required: true },
       { name: 'cashierName', type: 'string', description: 'Staff who prepared the quotation', sample: 'Alex Mercer', required: true },
       { name: 'notes', type: 'string', description: 'Commercial warranty / terms memo', sample: 'Pricing guaranteed for 15 days', required: false },
+      { name: 'includeBankDetails', type: 'boolean', description: 'Whether bank details are included on quotation', sample: 'false', required: false },
+      { name: 'bankDetails', type: 'json', description: 'JSON array of included bank details', sample: '[]', required: false },
     ],
   },
   {
@@ -292,8 +295,8 @@ var SCHEMAS = {
   'Accounts': ['id', 'name', 'type', 'bankName', 'accountHolder', 'accountNumber', 'ibanOrNib', 'swiftCode', 'branchName', 'balance', 'currency', 'notes'],
   'StockMovements': ['id', 'productId', 'productName', 'type', 'quantity', 'previousStock', 'newStock', 'reason', 'timestamp', 'performedBy'],
   'Employees': ['id', 'name', 'role', 'phone', 'email', 'monthlySalary', 'commissionRate', 'attendanceStatus', 'lastClockIn', 'joinedDate', 'pin', 'password', 'status', 'customPermissions', 'lastLogin'],
-  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language', 'logo'],
-  'Quotations': ['id', 'quotationNumber', 'customerId', 'customerName', 'customerPhone', 'customerEmail', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'status', 'validUntil', 'timestamp', 'cashierName', 'notes'],
+  'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language', 'logo', 'bankDetails'],
+  'Quotations': ['id', 'quotationNumber', 'customerId', 'customerName', 'customerPhone', 'customerEmail', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'status', 'validUntil', 'timestamp', 'cashierName', 'notes', 'includeBankDetails', 'bankDetails'],
   'PurchaseOrders': ['id', 'poNumber', 'supplierId', 'supplierName', 'supplierContact', 'supplierPhone', 'items', 'subtotal', 'taxAmount', 'total', 'status', 'expectedDeliveryDate', 'timestamp', 'receivedAt', 'createdBy', 'notes']
 };
 

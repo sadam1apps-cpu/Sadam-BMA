@@ -18,6 +18,7 @@
         "invoiceFooter": { "type": "string" },
         "language": { "type": "string" },
         "logo": { "type": "string" },
+        "bankDetails": { "type": "array", "description": "Optional bank details for quotations" },
         "updatedAt": { "type": "string" }
       },
       "required": ["name", "currency"]
@@ -89,7 +90,9 @@
         "validUntil": { "type": "string" },
         "timestamp": { "type": "string" },
         "cashierName": { "type": "string" },
-        "notes": { "type": "string" }
+        "notes": { "type": "string" },
+        "includeBankDetails": { "type": "boolean" },
+        "bankDetails": { "type": "array" }
       },
       "required": ["id", "quotationNumber", "total", "validUntil"]
     },
