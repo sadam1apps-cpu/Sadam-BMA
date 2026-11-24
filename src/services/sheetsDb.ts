@@ -9,6 +9,7 @@ import {
   Customer,
   Employee,
   Expense,
+  ManualInvoice,
   Product,
   Quotation,
   PurchaseOrder,
@@ -253,6 +254,25 @@ export const SHEETS_DATABASE_SCHEMAS: SheetSchema[] = [
       { name: 'notes', type: 'string', description: 'Receiving dock notes / delivery instructions', sample: 'Backdoor receiving dock', required: false },
     ],
   },
+  {
+    sheetName: 'ManualInvoices',
+    title: 'Manual Customer Invoices',
+    description: 'Manually tracked customer invoices, amounts, payments received, and open balances.',
+    columns: [
+      { name: 'id', type: 'string', description: 'Unique manual invoice ID', sample: 'minv_1', required: true },
+      { name: 'invoiceNumber', type: 'string', description: 'Manual or auto-generated invoice number', sample: 'MAN-1001', required: true },
+      { name: 'customerId', type: 'string', description: 'Linked customer ID if selected', sample: 'cust_1', required: false },
+      { name: 'customerName', type: 'string', description: 'Customer or client name', sample: 'Acme Corp', required: true },
+      { name: 'date', type: 'date', description: 'Invoice date (YYYY-MM-DD)', sample: '2026-11-24', required: true },
+      { name: 'amount', type: 'number', description: 'Total invoice amount', sample: '500.00', required: true },
+      { name: 'amountPaid', type: 'number', description: 'Amount paid so far', sample: '200.00', required: true },
+      { name: 'balance', type: 'number', description: 'Remaining balance due', sample: '300.00', required: true },
+      { name: 'status', type: 'string', description: 'paid | partial | unpaid', sample: 'partial', required: true },
+      { name: 'payments', type: 'json', description: 'JSON array of payment installments with dates', sample: '[{"id":"pay_1","amount":200,"date":"2026-11-24"}]', required: false },
+      { name: 'createdAt', type: 'date', description: 'Creation timestamp (ISO)', sample: '2026-11-24T10:00:00.000Z', required: true },
+      { name: 'updatedAt', type: 'date', description: 'Last updated timestamp (ISO)', sample: '2026-11-24T10:00:00.000Z', required: true },
+    ],
+  },
 ];
 
 /**
@@ -298,7 +318,8 @@ var SCHEMAS = {
   'Employees': ['id', 'name', 'role', 'phone', 'email', 'monthlySalary', 'commissionRate', 'attendanceStatus', 'lastClockIn', 'joinedDate', 'pin', 'password', 'status', 'customPermissions', 'lastLogin'],
   'BusinessProfile': ['name', 'businessName', 'ownerName', 'tagline', 'currency', 'phone', 'email', 'address', 'taxRate', 'invoiceFooter', 'language', 'logo', 'bankDetails'],
   'Quotations': ['id', 'quotationNumber', 'customerId', 'customerName', 'customerPhone', 'customerEmail', 'items', 'subtotal', 'discountAmount', 'taxAmount', 'total', 'status', 'validUntil', 'timestamp', 'cashierName', 'notes', 'includeBankDetails', 'bankDetails'],
-  'PurchaseOrders': ['id', 'poNumber', 'supplierId', 'supplierName', 'supplierContact', 'supplierPhone', 'items', 'subtotal', 'taxAmount', 'total', 'status', 'expectedDeliveryDate', 'timestamp', 'receivedAt', 'createdBy', 'notes']
+  'PurchaseOrders': ['id', 'poNumber', 'supplierId', 'supplierName', 'supplierContact', 'supplierPhone', 'items', 'subtotal', 'taxAmount', 'total', 'status', 'expectedDeliveryDate', 'timestamp', 'receivedAt', 'createdBy', 'notes'],
+  'ManualInvoices': ['id', 'invoiceNumber', 'customerId', 'customerName', 'date', 'amount', 'amountPaid', 'balance', 'status', 'payments', 'createdAt', 'updatedAt']
 };
 
 /**
@@ -391,7 +412,8 @@ function doPost(e) {
         stockMovements: 'StockMovements',
         employees: 'Employees',
         quotations: 'Quotations',
-        purchaseOrders: 'PurchaseOrders'
+        purchaseOrders: 'PurchaseOrders',
+        manualInvoices: 'ManualInvoices'
       };
 
       var updatedSheets = [];
@@ -432,7 +454,8 @@ function doPost(e) {
         'Employees': d.employees || [],
         'BusinessProfile': d.profile ? [d.profile] : [],
         'Quotations': d.quotations || [],
-        'PurchaseOrders': d.purchaseOrders || []
+        'PurchaseOrders': d.purchaseOrders || [],
+        'ManualInvoices': d.manualInvoices || []
       };
 
       for (var sheetName in collections) {
@@ -542,13 +565,17 @@ function ensureSheetAndHeaders(ss, sheetName, expectedHeaders) {
     return String(h).trim();
   });
 
+  var hasTimestampCol = expectedHeaders.indexOf('timestamp') !== -1;
   var normCurrent = currentHeaders.map(function(h) { return normalizeHeaderAlias(h); });
+  var cleanCurrent = currentHeaders.map(function(h) { return cleanColKey(h); });
   var missingHeaders = [];
 
   for (var i = 0; i < expectedHeaders.length; i++) {
     var exp = expectedHeaders[i];
     var normExp = normalizeHeaderAlias(exp);
-    if (normCurrent.indexOf(normExp) === -1) {
+    var cleanExp = cleanColKey(exp);
+    var exists = hasTimestampCol ? (normCurrent.indexOf(normExp) !== -1) : (cleanCurrent.indexOf(cleanExp) !== -1);
+    if (!exists) {
       missingHeaders.push(exp);
     }
   }
@@ -599,15 +626,15 @@ function readSheetData(ss, sheetName, expectedHeaders) {
       if (colIdx !== undefined && colIdx < row.length) {
         var cellVal = row[colIdx];
 
-        // Parse JSON strings (e.g. items array, customPermissions object, or bankDetails array)
-        if ((headerKey === 'items' || headerKey === 'customPermissions' || headerKey === 'bankDetails') && typeof cellVal === 'string' && (cellVal.indexOf('[') === 0 || cellVal.indexOf('{') === 0)) {
+        // Parse JSON strings (e.g. items array, customPermissions object, bankDetails, or payments array)
+        if ((headerKey === 'items' || headerKey === 'customPermissions' || headerKey === 'bankDetails' || headerKey === 'payments') && typeof cellVal === 'string' && (cellVal.indexOf('[') === 0 || cellVal.indexOf('{') === 0)) {
           try {
             record[headerKey] = JSON.parse(cellVal);
           } catch(e) {
-            record[headerKey] = (headerKey === 'items' || headerKey === 'bankDetails') ? [] : {};
+            record[headerKey] = (headerKey === 'items' || headerKey === 'bankDetails' || headerKey === 'payments') ? [] : {};
           }
         } else if (cellVal instanceof Date) {
-          if (headerKey === 'validUntil' || headerKey === 'expectedDeliveryDate' || headerKey === 'joinedDate') {
+          if (headerKey === 'validUntil' || headerKey === 'expectedDeliveryDate' || headerKey === 'joinedDate' || headerKey === 'date') {
             record[headerKey] = Utilities.formatDate(cellVal, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
           } else {
             record[headerKey] = cellVal.toISOString();
@@ -855,7 +882,7 @@ export async function fetchSheetViaGviz(spreadsheetId: string, sheetName: string
           hasData = true;
         }
         if (
-          (colKey === 'items' || colKey === 'customPermissions' || colKey === 'bankDetails') &&
+          (colKey === 'items' || colKey === 'customPermissions' || colKey === 'bankDetails' || colKey === 'payments') &&
           typeof val === 'string' &&
           (val.startsWith('{') || val.startsWith('['))
         ) {
@@ -863,7 +890,7 @@ export async function fetchSheetViaGviz(spreadsheetId: string, sheetName: string
             val = JSON.parse(val);
           } catch (e) {}
         } else if (
-          (colKey === 'validUntil' || colKey === 'expectedDeliveryDate' || colKey === 'joinedDate') &&
+          (colKey === 'validUntil' || colKey === 'expectedDeliveryDate' || colKey === 'joinedDate' || colKey === 'date') &&
           val
         ) {
           val = formatDateOnly(String(val));
@@ -967,7 +994,7 @@ export async function testSheetsConnection(scriptUrl: string): Promise<{
         success: true,
         message: 'Connected directly to Google Spreadsheet. Ready to display data.',
         spreadsheetTitle: 'Live Google Spreadsheet',
-        sheets: ['Products', 'Sales', 'Customers', 'Suppliers', 'Expenses', 'Employees', 'Accounts', 'StockMovements', 'BusinessProfile', 'Quotations', 'PurchaseOrders'],
+        sheets: ['Products', 'Sales', 'Customers', 'Suppliers', 'Expenses', 'Employees', 'Accounts', 'StockMovements', 'BusinessProfile', 'Quotations', 'PurchaseOrders', 'ManualInvoices'],
       };
     } catch (e: any) {
       return {
@@ -1114,6 +1141,7 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
     profile?: BusinessProfile;
     quotations?: Quotation[];
     purchaseOrders?: PurchaseOrder[];
+    manualInvoices?: ManualInvoice[];
   };
   message?: string;
 }> {
@@ -1140,6 +1168,7 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
         profileRows,
         quotations,
         purchaseOrders,
+        manualInvoices,
       ] = await Promise.all([
         fetchSheetViaGviz(spreadsheetId, 'Products'),
         fetchSheetViaGviz(spreadsheetId, 'Sales'),
@@ -1152,6 +1181,7 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
         fetchSheetViaGviz(spreadsheetId, 'BusinessProfile'),
         fetchSheetViaGviz(spreadsheetId, 'Quotations').catch(() => []),
         fetchSheetViaGviz(spreadsheetId, 'PurchaseOrders').catch(() => []),
+        fetchSheetViaGviz(spreadsheetId, 'ManualInvoices').catch(() => []),
       ]);
 
       const profileObj = profileRows && profileRows.length > 0 ? (profileRows[0] as BusinessProfile) : undefined;
@@ -1170,6 +1200,7 @@ export async function fetchAllFromSheets(scriptUrl: string): Promise<{
           profile: profileObj,
           quotations: (quotations || []) as Quotation[],
           purchaseOrders: (purchaseOrders || []) as PurchaseOrder[],
+          manualInvoices: (manualInvoices || []) as ManualInvoice[],
         },
       };
     } catch (err: any) {
@@ -1228,6 +1259,7 @@ export async function pushAllToSheets(
     profile: BusinessProfile;
     quotations?: Quotation[];
     purchaseOrders?: PurchaseOrder[];
+    manualInvoices?: ManualInvoice[];
   }
 ): Promise<{ success: boolean; message: string }> {
   if (!scriptUrl || !scriptUrl.trim()) {
@@ -1292,7 +1324,8 @@ export type SheetsDeltaCollectionKey =
   | 'stockMovements'
   | 'employees'
   | 'quotations'
-  | 'purchaseOrders';
+  | 'purchaseOrders'
+  | 'manualInvoices';
 
 export interface SheetsDeltaPayload {
   upserts: Partial<{
@@ -1306,6 +1339,7 @@ export interface SheetsDeltaPayload {
     employees: Employee[];
     quotations: Quotation[];
     purchaseOrders: PurchaseOrder[];
+    manualInvoices: ManualInvoice[];
   }>;
   deletes: Partial<Record<SheetsDeltaCollectionKey, string[]>>;
   profile?: BusinessProfile;
@@ -1322,6 +1356,7 @@ const DELTA_COLLECTION_TO_SHEET: Record<SheetsDeltaCollectionKey | 'profile', st
   employees: 'Employees',
   quotations: 'Quotations',
   purchaseOrders: 'PurchaseOrders',
+  manualInvoices: 'ManualInvoices',
   profile: 'BusinessProfile',
 };
 
@@ -1382,7 +1417,8 @@ export function canonicalRecordHash(
       } else if (
         col.name === 'validUntil' ||
         col.name === 'expectedDeliveryDate' ||
-        col.name === 'joinedDate'
+        col.name === 'joinedDate' ||
+        col.name === 'date'
       ) {
         normalized[col.name] = formatDateOnly(str);
       } else {

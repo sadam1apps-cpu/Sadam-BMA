@@ -68,6 +68,26 @@
       },
       "required": ["id", "invoiceNumber", "total", "timestamp"]
     },
+    "ManualInvoice": {
+      "title": "ManualInvoice",
+      "description": "Manually monitored customer invoice with invoice number, amount, amount paid, and balance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "date": { "type": "string" },
+        "amount": { "type": "number" },
+        "amountPaid": { "type": "number" },
+        "balance": { "type": "number" },
+        "status": { "type": "string" },
+        "payments": { "type": "array", "description": "Recorded payment installments with dates and amounts" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "customerName", "amount", "amountPaid", "balance"]
+    },
     "Quotation": {
       "title": "Quotation",
       "description": "Commercial price quotation document",
@@ -250,6 +270,10 @@
     "/sales/{saleId}": {
       "schema": "Sale",
       "description": "Completed point of sale records"
+    },
+    "/manualInvoices/{manualInvoiceId}": {
+      "schema": "ManualInvoice",
+      "description": "Manually entered and monitored client invoices"
     },
     "/quotations/{quotationId}": {
       "schema": "Quotation",

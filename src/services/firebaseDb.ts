@@ -23,6 +23,7 @@ import {
   Customer,
   Employee,
   Expense,
+  ManualInvoice,
   Product,
   PurchaseOrder,
   Quotation,
@@ -35,6 +36,7 @@ export const COLLECTIONS = {
   BUSINESS_PROFILE: 'businessProfile',
   PRODUCTS: 'products',
   SALES: 'sales',
+  MANUAL_INVOICES: 'manualInvoices',
   QUOTATIONS: 'quotations',
   PURCHASE_ORDERS: 'purchaseOrders',
   CUSTOMERS: 'customers',
@@ -49,6 +51,7 @@ export interface FirestoreDatabaseState {
   profile: BusinessProfile | null;
   products: Product[];
   sales: Sale[];
+  manualInvoices: ManualInvoice[];
   quotations: Quotation[];
   purchaseOrders: PurchaseOrder[];
   customers: Customer[];
@@ -149,6 +152,37 @@ export async function deleteSaleFromFirestore(saleId: string): Promise<void> {
   const path = `${COLLECTIONS.SALES}/${saleId}`;
   try {
     await deleteDoc(doc(db, COLLECTIONS.SALES, saleId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ==========================================
+// MANUAL INVOICES
+// ==========================================
+export async function saveManualInvoiceToFirestore(invoice: ManualInvoice): Promise<void> {
+  const path = `${COLLECTIONS.MANUAL_INVOICES}/${invoice.id}`;
+  try {
+    const cleaned = cleanForFirestore({
+      ...invoice,
+      date: formatDateOnly(invoice.date),
+      payments: Array.isArray(invoice.payments)
+        ? invoice.payments.map((p) => ({
+            ...p,
+            date: formatDateOnly(p.date),
+          }))
+        : [],
+    });
+    await setDoc(doc(db, COLLECTIONS.MANUAL_INVOICES, invoice.id), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteManualInvoiceFromFirestore(invoiceId: string): Promise<void> {
+  const path = `${COLLECTIONS.MANUAL_INVOICES}/${invoiceId}`;
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.MANUAL_INVOICES, invoiceId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -397,6 +431,7 @@ export async function batchWriteAllToFirestore(data: {
   profile: BusinessProfile;
   products: Product[];
   sales: Sale[];
+  manualInvoices?: ManualInvoice[];
   quotations: Quotation[];
   purchaseOrders: PurchaseOrder[];
   customers: Customer[];
@@ -436,6 +471,17 @@ export async function batchWriteAllToFirestore(data: {
       payload: cleanForFirestore({ ...q, validUntil: formatDateOnly(q.validUntil) }),
     })),
     ...data.sales.map((sa) => ({ collectionName: COLLECTIONS.SALES, id: sa.id, payload: cleanForFirestore(sa) })),
+    ...(data.manualInvoices || []).map((mi) => ({
+      collectionName: COLLECTIONS.MANUAL_INVOICES,
+      id: mi.id,
+      payload: cleanForFirestore({
+        ...mi,
+        date: formatDateOnly(mi.date),
+        payments: Array.isArray(mi.payments)
+          ? mi.payments.map((p) => ({ ...p, date: formatDateOnly(p.date) }))
+          : [],
+      }),
+    })),
     ...data.purchaseOrders.map((po) => ({
       collectionName: COLLECTIONS.PURCHASE_ORDERS,
       id: po.id,

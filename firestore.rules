@@ -1,24 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Reusable validation primitives
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // Connection health check document
     match /test/{docId} {
       allow get, write: if isValidId(docId);
       allow list: if true;
     }
 
+    // Business Profile
     match /businessProfile/{profileId} {
       allow get, write: if isValidId(profileId);
       allow list: if true;
     }
 
+    // Products
     match /products/{productId} {
       allow get: if isValidId(productId);
       allow list: if true;
@@ -29,6 +34,7 @@ service cloud.firestore {
       allow delete: if isValidId(productId);
     }
 
+    // Sales
     match /sales/{saleId} {
       allow get: if isValidId(saleId);
       allow list: if true;
@@ -38,6 +44,21 @@ service cloud.firestore {
       allow delete: if isValidId(saleId);
     }
 
+    // Manual Invoices (Client Invoice Monitor)
+    match /manualInvoices/{manualInvoiceId} {
+      allow get: if isValidId(manualInvoiceId);
+      allow list: if true;
+      allow create, update: if isValidId(manualInvoiceId) &&
+        request.resource.data.invoiceNumber is string &&
+        request.resource.data.customerName is string &&
+        request.resource.data.amount is number &&
+        request.resource.data.amountPaid is number &&
+        request.resource.data.balance is number &&
+        (!('payments' in request.resource.data) || (request.resource.data.payments is list && request.resource.data.payments.size() <= 100));
+      allow delete: if isValidId(manualInvoiceId);
+    }
+
+    // Quotations
     match /quotations/{quotationId} {
       allow get: if isValidId(quotationId);
       allow list: if true;
@@ -47,6 +68,7 @@ service cloud.firestore {
       allow delete: if isValidId(quotationId);
     }
 
+    // Purchase Orders
     match /purchaseOrders/{purchaseOrderId} {
       allow get: if isValidId(purchaseOrderId);
       allow list: if true;
@@ -56,6 +78,7 @@ service cloud.firestore {
       allow delete: if isValidId(purchaseOrderId);
     }
 
+    // Customers
     match /customers/{customerId} {
       allow get: if isValidId(customerId);
       allow list: if true;
@@ -64,6 +87,7 @@ service cloud.firestore {
       allow delete: if isValidId(customerId);
     }
 
+    // Suppliers
     match /suppliers/{supplierId} {
       allow get: if isValidId(supplierId);
       allow list: if true;
@@ -72,6 +96,7 @@ service cloud.firestore {
       allow delete: if isValidId(supplierId);
     }
 
+    // Expenses
     match /expenses/{expenseId} {
       allow get: if isValidId(expenseId);
       allow list: if true;
@@ -81,6 +106,7 @@ service cloud.firestore {
       allow delete: if isValidId(expenseId);
     }
 
+    // Employees
     match /employees/{employeeId} {
       allow get: if isValidId(employeeId);
       allow list: if true;
@@ -90,6 +116,7 @@ service cloud.firestore {
       allow delete: if isValidId(employeeId);
     }
 
+    // Accounts
     match /accounts/{accountId} {
       allow get: if isValidId(accountId);
       allow list: if true;
@@ -99,6 +126,7 @@ service cloud.firestore {
       allow delete: if isValidId(accountId);
     }
 
+    // Stock Movements
     match /stockMovements/{movementId} {
       allow get: if isValidId(movementId);
       allow list: if true;

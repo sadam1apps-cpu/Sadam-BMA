@@ -6,6 +6,8 @@ import {
   Customer,
   Employee,
   Expense,
+  ManualInvoice,
+  ManualInvoicePayment,
   NotificationAlert,
   Product,
   Quotation,
@@ -49,6 +51,8 @@ import {
   deleteProductFromFirestore,
   saveSaleToFirestore,
   deleteSaleFromFirestore,
+  saveManualInvoiceToFirestore,
+  deleteManualInvoiceFromFirestore,
   saveQuotationToFirestore,
   deleteQuotationFromFirestore,
   savePurchaseOrderToFirestore,
@@ -129,6 +133,7 @@ interface BusinessContextType {
 
   // Data
   sales: Sale[];
+  manualInvoices: ManualInvoice[];
   quotations: Quotation[];
   purchaseOrders: PurchaseOrder[];
   products: Product[];
@@ -143,6 +148,14 @@ interface BusinessContextType {
   // Actions
   addSale: (saleData: Omit<Sale, 'id' | 'invoiceNumber' | 'timestamp'>) => Sale;
   deleteSale: (saleId: string) => boolean;
+  generateManualInvoiceNumber: () => string;
+  addManualInvoice: (
+    data: Omit<ManualInvoice, 'id' | 'balance' | 'status' | 'createdAt' | 'updatedAt'> & {
+      invoiceNumber?: string;
+    }
+  ) => ManualInvoice;
+  updateManualInvoice: (id: string, updates: Partial<ManualInvoice>) => void;
+  deleteManualInvoice: (id: string) => boolean;
   addQuotation: (quotationData: Omit<Quotation, 'id' | 'quotationNumber' | 'timestamp'>) => Quotation;
   updateQuotation: (id: string, updates: Partial<Quotation>) => void;
   deleteQuotation: (id: string) => boolean;
@@ -211,6 +224,7 @@ const DELTA_COLLECTION_KEYS: SheetsDeltaCollectionKey[] = [
   'employees',
   'quotations',
   'purchaseOrders',
+  'manualInvoices',
 ];
 
 interface DirtyDeltaState {
@@ -236,6 +250,7 @@ const createEmptyDirtyDelta = (): DirtyDeltaState => ({
     employees: [],
     quotations: [],
     purchaseOrders: [],
+    manualInvoices: [],
   },
   deletes: {
     products: [],
@@ -248,6 +263,7 @@ const createEmptyDirtyDelta = (): DirtyDeltaState => ({
     employees: [],
     quotations: [],
     purchaseOrders: [],
+    manualInvoices: [],
   },
   profile: false,
 });
@@ -314,6 +330,7 @@ const buildHashesMapFromData = (data: {
   employees?: Employee[];
   quotations?: Quotation[];
   purchaseOrders?: PurchaseOrder[];
+  manualInvoices?: ManualInvoice[];
   profile?: BusinessProfile;
 }): SyncedHashesMap => {
   const map: SyncedHashesMap = {};
@@ -442,6 +459,86 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const normalizePurchaseOrder = (po: any): PurchaseOrder => ({
     ...po,
     expectedDeliveryDate: po.expectedDeliveryDate ? formatDateOnly(po.expectedDeliveryDate) : '',
+  });
+
+  const computeManualInvoiceFields = (rawAmount: any, rawAmountPaid: any) => {
+    const amount = Math.max(0, typeof rawAmount === 'number' ? rawAmount : parseFloat(rawAmount) || 0);
+    const amountPaid = Math.max(0, typeof rawAmountPaid === 'number' ? rawAmountPaid : parseFloat(rawAmountPaid) || 0);
+    const balance = Math.max(0, Number((amount - amountPaid).toFixed(2)));
+    const status: 'paid' | 'partial' | 'unpaid' =
+      balance <= 0 && amount > 0 ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid';
+    return { amount, amountPaid, balance, status };
+  };
+
+  const normalizeManualPayments = (
+    rawPayments: any,
+    fallbackAmountPaid: number,
+    fallbackDate: string
+  ): ManualInvoicePayment[] => {
+    let arr = rawPayments;
+    if (typeof rawPayments === 'string' && rawPayments.trim()) {
+      try {
+        arr = JSON.parse(rawPayments);
+      } catch {
+        arr = [];
+      }
+    }
+    if (Array.isArray(arr)) {
+      return arr
+        .filter((p) => p && typeof p === 'object')
+        .map((p, idx) => ({
+          id: p.id ? String(p.id) : `pay-${idx + 1}`,
+          amount: Math.max(0, typeof p.amount === 'number' ? p.amount : parseFloat(p.amount) || 0),
+          date: formatDateOnly(p.date || fallbackDate),
+        }))
+        .filter((p) => p.amount > 0);
+    }
+    if (fallbackAmountPaid > 0) {
+      return [
+        {
+          id: 'pay-init',
+          amount: fallbackAmountPaid,
+          date: formatDateOnly(fallbackDate),
+        },
+      ];
+    }
+    return [];
+  };
+
+  const normalizeManualInvoice = (m: any): ManualInvoice => {
+    const nowIso = new Date().toISOString();
+    const fallbackDate = formatDateOnly(m.date || m.createdAt || nowIso);
+    const rawPaid = Math.max(0, typeof m.amountPaid === 'number' ? m.amountPaid : parseFloat(m.amountPaid) || 0);
+    const payments = normalizeManualPayments(m.payments, rawPaid, fallbackDate);
+    const effectivePaid = Array.isArray(m.payments) || typeof m.payments === 'string'
+      ? Number(payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2))
+      : rawPaid;
+    const { amount, amountPaid, balance, status } = computeManualInvoiceFields(m.amount, effectivePaid);
+    return {
+      id: m.id !== undefined && m.id !== null ? String(m.id) : `minv-${Date.now()}`,
+      invoiceNumber: m.invoiceNumber !== undefined && m.invoiceNumber !== null ? String(m.invoiceNumber).trim() : '',
+      customerId: m.customerId ? String(m.customerId).trim() : '',
+      customerName: m.customerName !== undefined && m.customerName !== null ? String(m.customerName).trim() : '',
+      date: fallbackDate,
+      amount,
+      amountPaid,
+      balance,
+      status,
+      payments,
+      createdAt: m.createdAt || nowIso,
+      updatedAt: m.updatedAt || m.createdAt || nowIso,
+    };
+  };
+
+  const [manualInvoices, setManualInvoices] = useState<ManualInvoice[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_PREFIX}manualInvoices`);
+    if (saved && !isDemoString(saved)) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map(normalizeManualInvoice);
+      } catch (e) {}
+    }
+    return [];
   });
 
   const normalizeEmployee = (emp: any): Employee => ({
@@ -669,6 +766,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         profile,
         products,
         sales,
+        manualInvoices,
         quotations,
         purchaseOrders,
         customers,
@@ -719,6 +817,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     profile,
     quotations,
     purchaseOrders,
+    manualInvoices,
   });
   latestDataRef.current = {
     products,
@@ -732,6 +831,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     profile,
     quotations,
     purchaseOrders,
+    manualInvoices,
   };
   const syncStrategyRef = useRef(syncStrategy);
   syncStrategyRef.current = syncStrategy;
@@ -828,6 +928,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (d.stockMovements && Array.isArray(d.stockMovements)) setStockMovements(d.stockMovements);
         if (d.quotations && Array.isArray(d.quotations)) setQuotations(d.quotations.map(normalizeQuotation));
         if (d.purchaseOrders && Array.isArray(d.purchaseOrders)) setPurchaseOrders(d.purchaseOrders.map(normalizePurchaseOrder));
+        if (d.manualInvoices && Array.isArray(d.manualInvoices)) setManualInvoices(d.manualInvoices.map(normalizeManualInvoice));
         if (d.employees && Array.isArray(d.employees)) {
           const normalizedEmployees: Employee[] = d.employees.map((emp) => ({
             ...emp,
@@ -872,6 +973,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           employees: Array.isArray(d.employees) ? d.employees.map(normalizeEmployee) : undefined,
           quotations: Array.isArray(d.quotations) ? d.quotations.map(normalizeQuotation) : undefined,
           purchaseOrders: Array.isArray(d.purchaseOrders) ? d.purchaseOrders.map(normalizePurchaseOrder) : undefined,
+          manualInvoices: Array.isArray(d.manualInvoices) ? d.manualInvoices.map(normalizeManualInvoice) : undefined,
           profile: d.profile && typeof d.profile === 'object' ? { ...profile, ...d.profile } : undefined,
         });
         syncedHashesRef.current = restoredHashes;
@@ -948,6 +1050,9 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             quotations: Array.isArray(baselineRes.data.quotations) ? baselineRes.data.quotations.map(normalizeQuotation) : [],
             purchaseOrders: Array.isArray(baselineRes.data.purchaseOrders)
               ? baselineRes.data.purchaseOrders.map(normalizePurchaseOrder)
+              : [],
+            manualInvoices: Array.isArray(baselineRes.data.manualInvoices)
+              ? baselineRes.data.manualInvoices.map(normalizeManualInvoice)
               : [],
             profile: baselineRes.data.profile,
           });
@@ -1065,6 +1170,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           profile: snapshot.profile,
           quotations: snapshot.quotations,
           purchaseOrders: snapshot.purchaseOrders,
+          manualInvoices: snapshot.manualInvoices,
         });
         if (fullRes.success) {
           const updatedHashes = buildHashesMapFromData(snapshot);
@@ -1391,6 +1497,27 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       );
       unsubs.push(unsubPOs);
 
+      let hasManualSnapshotData = false;
+      const unsubManualInvoices = subscribeToCollection<ManualInvoice>(
+        COLLECTIONS.MANUAL_INVOICES,
+        (items) => {
+          if (!isMounted) return;
+          if (items.length > 0 || hasManualSnapshotData) {
+            if (items.length > 0) hasManualSnapshotData = true;
+            isSyncingFromFirestoreRef.current = true;
+            setManualInvoices(
+              items
+                .map(normalizeManualInvoice)
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            );
+            setTimeout(() => {
+              isSyncingFromFirestoreRef.current = false;
+            }, 300);
+          }
+        }
+      );
+      unsubs.push(unsubManualInvoices);
+
       const unsubCustomers = subscribeToCollection<Customer>(
         COLLECTIONS.CUSTOMERS,
         (items) => {
@@ -1536,6 +1663,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}sales`, JSON.stringify(sales));
   }, [sales]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_PREFIX}manualInvoices`, JSON.stringify(manualInvoices));
+  }, [manualInvoices]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_PREFIX}quotations`, JSON.stringify(quotations));
@@ -1899,6 +2030,109 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         sales: [saleId],
       },
     });
+    return true;
+  };
+
+  // MANUAL CUSTOMER INVOICE TRACKING ACTIONS (Independent of POS sales, stock, & cash accounts)
+  const generateManualInvoiceNumber = (): string => {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const existingNums = new Set(manualInvoices.map((m) => m.invoiceNumber.trim().toUpperCase()));
+    let seq = manualInvoices.length + 101;
+    let candidate = `MINV-${dateStr}-${seq}`;
+    while (existingNums.has(candidate.toUpperCase())) {
+      seq += 1;
+      candidate = `MINV-${dateStr}-${seq}`;
+    }
+    return candidate;
+  };
+
+  const addManualInvoice = (
+    data: Omit<ManualInvoice, 'id' | 'balance' | 'status' | 'createdAt' | 'updatedAt'> & {
+      invoiceNumber?: string;
+    }
+  ): ManualInvoice => {
+    const nowIso = new Date().toISOString();
+    const invoiceDate = formatDateOnly(data.date || nowIso);
+    const initialPaid = Math.max(0, Number(data.amountPaid) || 0);
+    const payments = normalizeManualPayments(
+      data.payments,
+      initialPaid,
+      invoiceDate
+    );
+    const summedPaid =
+      Array.isArray(data.payments)
+        ? Number(payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2))
+        : initialPaid;
+    const { amount, amountPaid, balance, status } = computeManualInvoiceFields(data.amount, summedPaid);
+    const invoiceNumber =
+      data.invoiceNumber && data.invoiceNumber.trim()
+        ? data.invoiceNumber.trim()
+        : generateManualInvoiceNumber();
+
+    const newManualInvoice: ManualInvoice = {
+      id: `minv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      invoiceNumber,
+      customerId: data.customerId ? String(data.customerId).trim() : '',
+      customerName: String(data.customerName || '').trim(),
+      date: invoiceDate,
+      amount,
+      amountPaid,
+      balance,
+      status,
+      payments,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    setManualInvoices((prev) => [newManualInvoice, ...prev]);
+    saveManualInvoiceToFirestore(newManualInvoice).catch(console.error);
+    triggerSheetsBackup({ upserts: { manualInvoices: [newManualInvoice.id] } });
+    return newManualInvoice;
+  };
+
+  const updateManualInvoice = (id: string, updates: Partial<ManualInvoice>) => {
+    const nowIso = new Date().toISOString();
+    setManualInvoices((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const merged = { ...m, ...updates, updatedAt: nowIso };
+          const invoiceDate = formatDateOnly(merged.date || m.date);
+          const payments =
+            updates.payments !== undefined
+              ? normalizeManualPayments(updates.payments, 0, invoiceDate)
+              : normalizeManualPayments(m.payments, m.amountPaid, invoiceDate);
+          const effectivePaid =
+            updates.payments !== undefined
+              ? Number(payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2))
+              : merged.amountPaid;
+          const { amount, amountPaid, balance, status } = computeManualInvoiceFields(
+            merged.amount,
+            effectivePaid
+          );
+          const updated: ManualInvoice = {
+            ...merged,
+            invoiceNumber: String(merged.invoiceNumber || m.invoiceNumber).trim(),
+            customerName: String(merged.customerName || m.customerName).trim(),
+            date: invoiceDate,
+            amount,
+            amountPaid,
+            balance,
+            status,
+            payments,
+          };
+          saveManualInvoiceToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return m;
+      })
+    );
+    triggerSheetsBackup({ upserts: { manualInvoices: [id] } });
+  };
+
+  const deleteManualInvoice = (id: string): boolean => {
+    setManualInvoices((prev) => prev.filter((m) => m.id !== id));
+    deleteManualInvoiceFromFirestore(id).catch(console.error);
+    triggerSheetsBackup({ deletes: { manualInvoices: [id] } });
     return true;
   };
 
@@ -2878,6 +3112,7 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lockScreen,
         unlockScreen,
         sales,
+        manualInvoices,
         quotations,
         purchaseOrders,
         products,
@@ -2890,6 +3125,10 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         alerts,
         addSale,
         deleteSale,
+        generateManualInvoiceNumber,
+        addManualInvoice,
+        updateManualInvoice,
+        deleteManualInvoice,
         addQuotation,
         updateQuotation,
         deleteQuotation,

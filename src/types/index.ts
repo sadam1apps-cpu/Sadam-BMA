@@ -105,6 +105,27 @@ export interface Sale {
   notes?: string;
 }
 
+export interface ManualInvoicePayment {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+}
+
+export interface ManualInvoice {
+  id: string;
+  invoiceNumber: string;
+  customerId?: string;
+  customerName: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  amountPaid: number;
+  balance: number;
+  status: 'paid' | 'partial' | 'unpaid';
+  payments?: ManualInvoicePayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface QuotationItem {
   productId: string;
   productName: string;
