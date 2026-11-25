@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { jsPDF } from 'jspdf';
-import { renderPdfLogo } from '../../utils/pdfLogo';
+import { getPdfImage } from '../../utils/pdfLogo';
 import { formatDateOnly } from '../../utils/dateFormat';
 
 interface QuotationModalProps {
@@ -374,40 +374,68 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 18;
-      let y = profile.logo ? 14 : 22;
+      const topY = 16;
+      let logoRightX = margin;
+      let logoBottomY = topY;
 
-      // Business Logo
+      // Business Logo (Left-aligned)
       if (profile.logo && profile.logo.trim()) {
         try {
-          y = await renderPdfLogo(doc, profile.logo, pageWidth, y, 42, 16);
+          const prepared = await getPdfImage(profile.logo);
+          if (prepared) {
+            const aspect = prepared.width / (prepared.height || 1);
+            const maxW = 36;
+            const maxH = 16;
+            let renderW = maxW;
+            let renderH = renderW / aspect;
+            if (renderH > maxH) {
+              renderH = maxH;
+              renderW = renderH * aspect;
+            }
+            doc.addImage(prepared.dataUrl, prepared.format, margin, topY, renderW, renderH);
+            logoRightX = margin + renderW + 5;
+            logoBottomY = topY + renderH;
+          }
         } catch (e) {
           console.warn('PDF logo render error:', e);
         }
       }
 
+      // Business Info (Left-aligned beside logo, or at left margin if no logo)
+      const infoX = logoRightX;
+      const maxInfoWidth = pageWidth - margin - infoX;
+      let infoY = topY + 4.5;
+
       const storeName = (profile.businessName || profile.name || '').toUpperCase();
       if (storeName) {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
+        doc.setFontSize(15);
         doc.setTextColor(15, 23, 42);
-        doc.text(storeName, pageWidth / 2, y, { align: 'center' });
-        y += 7;
+        const nameLines: string[] = doc.splitTextToSize(storeName, maxInfoWidth);
+        doc.text(nameLines, infoX, infoY, { align: 'left' });
+        infoY += nameLines.length * 5.5 + 0.5;
       }
 
       if (profile.address) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(100, 116, 139);
-        doc.text(profile.address, pageWidth / 2, y, { align: 'center' });
-        y += 5;
+        const addrLines: string[] = doc.splitTextToSize(profile.address, maxInfoWidth);
+        doc.text(addrLines, infoX, infoY, { align: 'left' });
+        infoY += addrLines.length * 4.2 + 0.5;
       }
 
       if (profile.phone || profile.email) {
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
+        doc.setTextColor(100, 116, 139);
         const contact = [profile.phone, profile.email].filter(Boolean).join(' • ');
-        doc.text(contact, pageWidth / 2, y, { align: 'center' });
-        y += 8;
+        const contactLines: string[] = doc.splitTextToSize(contact, maxInfoWidth);
+        doc.text(contactLines, infoX, infoY, { align: 'left' });
+        infoY += contactLines.length * 4;
       }
+
+      let y = Math.max(logoBottomY + 4, infoY + 2, topY + 12);
 
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.4);
@@ -417,7 +445,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(79, 70, 229);
-      doc.text(language === 'pt' ? 'ORÇAMENTO COMERCIAL' : 'PRICE QUOTATION', margin, y);
+      doc.text(language === 'pt' ? 'ORÇAMENTO COMERCIAL' : 'QUOTATION', margin, y);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
