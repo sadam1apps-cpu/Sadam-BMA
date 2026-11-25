@@ -293,17 +293,6 @@ export const SELF_HEALING_APPS_SCRIPT_CODE = `/**
  *    custom notes columns in the sheet.
  * 3. Auto-Tab Creation: If a sheet tab was not manually created, it auto-creates it!
  * 4. Fast & Safe: Atomic batch updates and JSON serialization.
- *
- * HOW TO DEPLOY:
- * 1. In your Google Sheet, click 'Extensions' > 'Apps Script'.
- * 2. Replace everything in Code.gs with this entire code.
- * 3. Click 'Deploy' > 'New deployment'.
- * 4. Select type: 'Web app'.
- * 5. Description: 'Business Management DB'.
- * 6. Execute as: 'Me' (your email).
- * 7. Who has access: 'Anyone'. (Required for seamless access without login).
- * 8. Click 'Deploy', authorize permissions, and copy the Web App URL!
- * 9. Paste the Web App URL into your Business Management App settings.
  * ==============================================================================
  */
 
