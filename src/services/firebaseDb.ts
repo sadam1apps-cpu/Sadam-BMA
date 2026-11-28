@@ -10,6 +10,7 @@ import {
   getDocs,
   getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   writeBatch,
@@ -27,6 +28,9 @@ import {
   Product,
   PurchaseOrder,
   Quotation,
+  QuoteRequest,
+  QuoteRequestStatus,
+  QuoteSettings,
   Sale,
   StockMovement,
   Supplier,
@@ -45,6 +49,8 @@ export const COLLECTIONS = {
   EMPLOYEES: 'employees',
   ACCOUNTS: 'accounts',
   STOCK_MOVEMENTS: 'stockMovements',
+  QUOTE_REQUESTS: 'quoteRequests',
+  QUOTE_SETTINGS: 'quoteSettings',
 } as const;
 
 export interface FirestoreDatabaseState {
@@ -567,3 +573,146 @@ export function subscribeToDocument<T>(
     }
   );
 }
+
+// ==========================================
+// WEBSITE QUOTE REQUESTS (MESSAGES)
+// ==========================================
+export function normalizeFirestoreTimestamp(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? new Date().toISOString() : val.toISOString();
+  }
+  if (typeof val?.toDate === 'function') {
+    try {
+      return val.toDate().toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  if (typeof val?.seconds === 'number') {
+    return new Date(val.seconds * 1000).toISOString();
+  }
+  if (typeof val === 'number') {
+    return new Date(val).toISOString();
+  }
+  return new Date().toISOString();
+}
+
+export function subscribeToQuoteRequests(
+  onUpdate: (items: QuoteRequest[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, COLLECTIONS.QUOTE_REQUESTS),
+    (snapshot) => {
+      const items: QuoteRequest[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as Record<string, any>;
+        const rawStatus = String(data.status || 'new');
+        const status: QuoteRequestStatus =
+          rawStatus === 'reviewed' || rawStatus === 'quoted' || rawStatus === 'archived'
+            ? rawStatus
+            : 'new';
+
+        return {
+          id: docSnap.id,
+          referenceId: data.referenceId ? String(data.referenceId) : docSnap.id,
+          fullName: data.fullName ? String(data.fullName) : '',
+          organization: data.organization ? String(data.organization) : '',
+          email: data.email ? String(data.email) : '',
+          phone: data.phone ? String(data.phone) : '',
+          deliveryFormat: data.deliveryFormat ? String(data.deliveryFormat) : '',
+          preferredDate: data.preferredDate ? formatDateOnly(data.preferredDate) : '',
+          notes: data.notes ? String(data.notes) : '',
+          selectedItems: Array.isArray(data.selectedItems)
+            ? data.selectedItems.map((item: any) => String(item))
+            : [],
+          language: data.language ? String(data.language) : 'en',
+          status,
+          source: data.source ? String(data.source) : 'stech-global-website',
+          createdAt: normalizeFirestoreTimestamp(data.createdAt),
+        };
+      });
+      onUpdate(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, COLLECTIONS.QUOTE_REQUESTS);
+    }
+  );
+}
+
+export async function updateQuoteRequestStatusInFirestore(
+  requestId: string,
+  status: QuoteRequestStatus
+): Promise<void> {
+  const path = `${COLLECTIONS.QUOTE_REQUESTS}/${requestId}`;
+  try {
+    await updateDoc(doc(db, COLLECTIONS.QUOTE_REQUESTS, requestId), { status });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteQuoteRequestFromFirestore(requestId: string): Promise<void> {
+  const path = `${COLLECTIONS.QUOTE_REQUESTS}/${requestId}`;
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.QUOTE_REQUESTS, requestId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export function subscribeToQuoteSettings(
+  onUpdate: (settings: QuoteSettings) => void
+): Unsubscribe {
+  const path = `${COLLECTIONS.QUOTE_SETTINGS}/websiteIntake`;
+  return onSnapshot(
+    doc(db, COLLECTIONS.QUOTE_SETTINGS, 'websiteIntake'),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Record<string, any>;
+        onUpdate({
+          enabled: data.enabled !== false,
+          blockedEmails: Array.isArray(data.blockedEmails)
+            ? data.blockedEmails.map((e: any) => String(e).trim().toLowerCase()).filter(Boolean)
+            : [],
+          blockedPhones: Array.isArray(data.blockedPhones)
+            ? data.blockedPhones.map((p: any) => String(p).trim()).filter(Boolean)
+            : [],
+          updatedAt: data.updatedAt ? String(data.updatedAt) : undefined,
+        });
+      } else {
+        onUpdate({
+          enabled: true,
+          blockedEmails: [],
+          blockedPhones: [],
+        });
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveQuoteSettingsToFirestore(
+  settings: QuoteSettings
+): Promise<void> {
+  const path = `${COLLECTIONS.QUOTE_SETTINGS}/websiteIntake`;
+  try {
+    const cleaned = cleanForFirestore({
+      enabled: Boolean(settings.enabled),
+      blockedEmails: Array.from(
+        new Set(settings.blockedEmails.map((e) => e.trim().toLowerCase()).filter(Boolean))
+      ).slice(0, 200),
+      blockedPhones: Array.from(
+        new Set(settings.blockedPhones.map((p) => p.trim()).filter(Boolean))
+      ).slice(0, 200),
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(doc(db, COLLECTIONS.QUOTE_SETTINGS, 'websiteIntake'), cleaned);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+

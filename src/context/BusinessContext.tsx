@@ -11,6 +11,9 @@ import {
   NotificationAlert,
   Product,
   Quotation,
+  QuoteRequest,
+  QuoteRequestStatus,
+  QuoteSettings,
   PurchaseOrder,
   RolePermissions,
   Sale,
@@ -69,6 +72,11 @@ import {
   batchWriteAllToFirestore,
   subscribeToCollection,
   subscribeToDocument,
+  subscribeToQuoteRequests,
+  subscribeToQuoteSettings,
+  saveQuoteSettingsToFirestore,
+  updateQuoteRequestStatusInFirestore,
+  deleteQuoteRequestFromFirestore,
   seedInitialFirestoreData,
   COLLECTIONS,
 } from '../services/firebaseDb';
@@ -144,6 +152,13 @@ interface BusinessContextType {
   accounts: Account[];
   stockMovements: StockMovement[];
   alerts: NotificationAlert[];
+  quoteRequests: QuoteRequest[];
+  quoteSettings: QuoteSettings;
+  newQuoteRequestsCount: number;
+  latestIncomingQuoteRequest: QuoteRequest | null;
+  dismissIncomingQuoteToast: () => void;
+  selectedMessageId: string | null;
+  setSelectedMessageId: (id: string | null) => void;
 
   // Actions
   addSale: (saleData: Omit<Sale, 'id' | 'invoiceNumber' | 'timestamp'>) => Sale;
@@ -192,6 +207,11 @@ interface BusinessContextType {
 
   markAlertRead: (id: string) => void;
   dismissAlert: (id: string) => void;
+  updateQuoteRequestStatus: (id: string, status: QuoteRequestStatus) => void;
+  deleteQuoteRequest: (id: string) => boolean;
+  toggleWebsiteMessagesEnabled: () => void;
+  blockQuoteSender: (email?: string, phone?: string) => void;
+  unblockQuoteSender: (type: 'email' | 'phone', value: string) => void;
   resetDemoData: () => void;
 
   // Computed Metrics
@@ -696,6 +716,82 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [activeNavTab, setActiveNavTab] = useState<string>('dashboard');
+  const [rawQuoteRequests, setRawQuoteRequests] = useState<QuoteRequest[]>([]);
+  const [quoteSettings, setQuoteSettings] = useState<QuoteSettings>({
+    enabled: true,
+    blockedEmails: [],
+    blockedPhones: [],
+  });
+  const quoteSettingsRef = useRef<QuoteSettings>(quoteSettings);
+  quoteSettingsRef.current = quoteSettings;
+  const [latestIncomingQuoteRequest, setLatestIncomingQuoteRequest] = useState<QuoteRequest | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const knownQuoteRequestIdsRef = useRef<Set<string>>(new Set());
+  const alertSyncedQuoteIdsRef = useRef<Set<string>>(new Set());
+  const hasInitialQuoteSnapshotRef = useRef<boolean>(false);
+
+  const isQuoteSenderBlocked = (req: QuoteRequest, settings: QuoteSettings): boolean => {
+    const email = (req.email || '').trim().toLowerCase();
+    if (email && settings.blockedEmails.length > 0) {
+      const emailMatched = settings.blockedEmails.some((pattern) => {
+        const clean = pattern.trim().toLowerCase();
+        if (!clean) return false;
+        if (clean.startsWith('@')) return email.endsWith(clean);
+        return email === clean;
+      });
+      if (emailMatched) return true;
+    }
+
+    const rawPhone = (req.phone || '').trim();
+    const phoneDigits = rawPhone.replace(/\D+/g, '');
+    if (rawPhone && settings.blockedPhones.length > 0) {
+      const phoneMatched = settings.blockedPhones.some((bp) => {
+        const cleanBp = bp.trim();
+        if (!cleanBp) return false;
+        const bpDigits = cleanBp.replace(/\D+/g, '');
+        return rawPhone === cleanBp || (Boolean(phoneDigits) && Boolean(bpDigits) && phoneDigits === bpDigits);
+      });
+      if (phoneMatched) return true;
+    }
+
+    return false;
+  };
+
+  const quoteRequests = React.useMemo(
+    () => rawQuoteRequests.filter((req) => !isQuoteSenderBlocked(req, quoteSettings)),
+    [rawQuoteRequests, quoteSettings]
+  );
+
+  const dismissIncomingQuoteToast = () => {
+    setLatestIncomingQuoteRequest(null);
+  };
+
+  const playIncomingNotificationChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      const playTone = (freq: number, startOffset: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + startOffset);
+        gain.gain.setValueAtTime(0.001, now + startOffset);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + startOffset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + startOffset + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + startOffset);
+        osc.stop(now + startOffset + duration + 0.02);
+      };
+      playTone(660, 0, 0.14);
+      playTone(880, 0.12, 0.22);
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 600);
+    } catch {}
+  };
 
   // Google Sheets Database State - constant from .env or DEFAULT_SHEETS_URL
   const envSheetsUrl = (
@@ -1592,6 +1688,74 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       );
       unsubs.push(unsubStock);
+
+      const unsubQuoteSettings = subscribeToQuoteSettings((settings) => {
+        if (!isMounted) return;
+        quoteSettingsRef.current = settings;
+        setQuoteSettings(settings);
+      });
+      unsubs.push(unsubQuoteSettings);
+
+      hasInitialQuoteSnapshotRef.current = false;
+      knownQuoteRequestIdsRef.current = new Set();
+
+      const unsubQuoteRequests = subscribeToQuoteRequests((items) => {
+        if (!isMounted) return;
+        const sorted = [...items].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setRawQuoteRequests(sorted);
+
+        const activeSettings = quoteSettingsRef.current;
+        const allowedRequests = sorted.filter((req) => !isQuoteSenderBlocked(req, activeSettings));
+
+        const newlyArrivedNewRequests = allowedRequests.filter(
+          (req) => req.status === 'new' && !knownQuoteRequestIdsRef.current.has(req.id)
+        );
+
+        // Sync any newly discovered 'new' requests into the notification center without duplicating
+        const unsyncedAlerts = activeSettings.enabled
+          ? allowedRequests.filter(
+              (req) => req.status === 'new' && !alertSyncedQuoteIdsRef.current.has(req.id)
+            )
+          : [];
+        if (unsyncedAlerts.length > 0) {
+          unsyncedAlerts.forEach((req) => alertSyncedQuoteIdsRef.current.add(req.id));
+          setAlerts((prev) => {
+            const existingIds = new Set(prev.map((a) => a.id));
+            const toPrepend: NotificationAlert[] = [];
+            for (const req of unsyncedAlerts) {
+              const alertId = `alert-qr-${req.id}`;
+              if (!existingIds.has(alertId)) {
+                toPrepend.push({
+                  id: alertId,
+                  type: 'quote_request',
+                  title: `New Website Quote Request: ${req.fullName || req.referenceId}`,
+                  message: `${req.organization ? `${req.organization} • ` : ''}${req.referenceId} (${req.selectedItems.length} item${req.selectedItems.length === 1 ? '' : 's'})`,
+                  severity: 'info',
+                  timestamp: req.createdAt,
+                  read: false,
+                  actionTarget: { tab: 'messages', id: req.id },
+                });
+              }
+            }
+            return toPrepend.length > 0 ? [...toPrepend, ...prev] : prev;
+          });
+        }
+
+        if (
+          activeSettings.enabled &&
+          hasInitialQuoteSnapshotRef.current &&
+          newlyArrivedNewRequests.length > 0
+        ) {
+          setLatestIncomingQuoteRequest(newlyArrivedNewRequests[0]);
+          playIncomingNotificationChime();
+        }
+
+        sorted.forEach((req) => knownQuoteRequestIdsRef.current.add(req.id));
+        hasInitialQuoteSnapshotRef.current = true;
+      });
+      unsubs.push(unsubQuoteRequests);
 
       if (isMounted) {
         setFirebaseSyncStatus('connected');
@@ -3049,6 +3213,103 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const newQuoteRequestsCount = quoteRequests.filter((q) => q.status === 'new').length;
+
+  const updateQuoteRequestStatus = (id: string, status: QuoteRequestStatus) => {
+    setRawQuoteRequests((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)));
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === `alert-qr-${id}` ? { ...a, read: status !== 'new' } : a))
+    );
+    if (latestIncomingQuoteRequest?.id === id && status !== 'new') {
+      setLatestIncomingQuoteRequest(null);
+    }
+    updateQuoteRequestStatusInFirestore(id, status).catch(console.error);
+  };
+
+  const deleteQuoteRequest = (id: string): boolean => {
+    setRawQuoteRequests((prev) => prev.filter((q) => q.id !== id));
+    setAlerts((prev) => prev.filter((a) => a.id !== `alert-qr-${id}`));
+    if (latestIncomingQuoteRequest?.id === id) {
+      setLatestIncomingQuoteRequest(null);
+    }
+    if (selectedMessageId === id) {
+      setSelectedMessageId(null);
+    }
+    deleteQuoteRequestFromFirestore(id).catch(console.error);
+    return true;
+  };
+
+  const toggleWebsiteMessagesEnabled = () => {
+    const nextSettings: QuoteSettings = {
+      ...quoteSettings,
+      enabled: !quoteSettings.enabled,
+      updatedAt: new Date().toISOString(),
+    };
+    if (!nextSettings.enabled) {
+      setLatestIncomingQuoteRequest(null);
+    }
+    quoteSettingsRef.current = nextSettings;
+    setQuoteSettings(nextSettings);
+    saveQuoteSettingsToFirestore(nextSettings).catch(console.error);
+  };
+
+  const blockQuoteSender = (email?: string, phone?: string) => {
+    const cleanEmail = email ? email.trim().toLowerCase() : '';
+    const cleanPhone = phone ? phone.trim() : '';
+    if (!cleanEmail && !cleanPhone) return;
+
+    const nextSettings: QuoteSettings = {
+      enabled: quoteSettings.enabled,
+      blockedEmails: cleanEmail
+        ? Array.from(new Set([...quoteSettings.blockedEmails, cleanEmail]))
+        : quoteSettings.blockedEmails,
+      blockedPhones: cleanPhone
+        ? Array.from(new Set([...quoteSettings.blockedPhones, cleanPhone]))
+        : quoteSettings.blockedPhones,
+      updatedAt: new Date().toISOString(),
+    };
+
+    quoteSettingsRef.current = nextSettings;
+    setQuoteSettings(nextSettings);
+
+    const blockedIds = new Set(
+      rawQuoteRequests
+        .filter((req) => isQuoteSenderBlocked(req, nextSettings))
+        .map((req) => req.id)
+    );
+    if (selectedMessageId && blockedIds.has(selectedMessageId)) {
+      setSelectedMessageId(null);
+    }
+    if (latestIncomingQuoteRequest && blockedIds.has(latestIncomingQuoteRequest.id)) {
+      setLatestIncomingQuoteRequest(null);
+    }
+    if (blockedIds.size > 0) {
+      setAlerts((prev) => prev.filter((a) => !blockedIds.has(a.actionTarget?.id || '')));
+    }
+
+    saveQuoteSettingsToFirestore(nextSettings).catch(console.error);
+  };
+
+  const unblockQuoteSender = (type: 'email' | 'phone', value: string) => {
+    const target = value.trim();
+    const nextSettings: QuoteSettings = {
+      enabled: quoteSettings.enabled,
+      blockedEmails:
+        type === 'email'
+          ? quoteSettings.blockedEmails.filter((e) => e.toLowerCase() !== target.toLowerCase())
+          : quoteSettings.blockedEmails,
+      blockedPhones:
+        type === 'phone'
+          ? quoteSettings.blockedPhones.filter((p) => p !== target)
+          : quoteSettings.blockedPhones,
+      updatedAt: new Date().toISOString(),
+    };
+
+    quoteSettingsRef.current = nextSettings;
+    setQuoteSettings(nextSettings);
+    saveQuoteSettingsToFirestore(nextSettings).catch(console.error);
+  };
+
   const resetDemoData = () => {
     setProfile(initialBusinessProfile);
     setCurrentRole('owner');
@@ -3123,6 +3384,13 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         accounts,
         stockMovements,
         alerts,
+        quoteRequests,
+        quoteSettings,
+        newQuoteRequestsCount,
+        latestIncomingQuoteRequest,
+        dismissIncomingQuoteToast,
+        selectedMessageId,
+        setSelectedMessageId,
         addSale,
         deleteSale,
         generateManualInvoiceNumber,
@@ -3159,6 +3427,11 @@ export const BusinessProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toggleAttendance,
         markAlertRead,
         dismissAlert,
+        updateQuoteRequestStatus,
+        deleteQuoteRequest,
+        toggleWebsiteMessagesEnabled,
+        blockQuoteSender,
+        unblockQuoteSender,
         resetDemoData,
         todaySalesTotal,
         todayExpensesTotal,

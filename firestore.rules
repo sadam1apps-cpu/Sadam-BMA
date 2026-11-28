@@ -6,6 +6,52 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidQuoteRequest(data) {
+      return data.keys().hasAll(['referenceId', 'fullName', 'email', 'selectedItems', 'status']) &&
+        data.keys().hasOnly([
+          'referenceId', 'fullName', 'organization', 'email', 'phone',
+          'deliveryFormat', 'preferredDate', 'notes', 'selectedItems',
+          'language', 'status', 'source', 'createdAt'
+        ]) &&
+        data.referenceId is string && data.referenceId.size() > 0 && data.referenceId.size() <= 80 &&
+        data.fullName is string && data.fullName.size() > 0 && data.fullName.size() <= 160 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 200 &&
+        (!('organization' in data) || (data.organization is string && data.organization.size() <= 200)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 60)) &&
+        (!('deliveryFormat' in data) || (data.deliveryFormat is string && data.deliveryFormat.size() <= 100)) &&
+        (!('preferredDate' in data) || (data.preferredDate is string && data.preferredDate.size() <= 40)) &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 3000)) &&
+        data.selectedItems is list && data.selectedItems.size() <= 50 &&
+        (data.selectedItems.size() == 0 || data.selectedItems[0] is string) &&
+        (!('language' in data) || (data.language is string && data.language.size() <= 20)) &&
+        data.status is string && data.status.size() > 0 && data.status.size() <= 40 &&
+        (!('source' in data) || (data.source is string && data.source.size() <= 100)) &&
+        (!('createdAt' in data) || data.createdAt is timestamp || (data.createdAt is string && data.createdAt.size() <= 80));
+    }
+
+    function isValidQuoteSettings(data) {
+      return data.keys().hasAll(['enabled', 'blockedEmails', 'blockedPhones']) &&
+        data.keys().hasOnly(['enabled', 'blockedEmails', 'blockedPhones', 'updatedAt']) &&
+        data.enabled is bool &&
+        data.blockedEmails is list && data.blockedEmails.size() <= 200 &&
+        (data.blockedEmails.size() == 0 || data.blockedEmails[0] is string) &&
+        data.blockedPhones is list && data.blockedPhones.size() <= 200 &&
+        (data.blockedPhones.size() == 0 || data.blockedPhones[0] is string) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 80));
+    }
+
+    function isWebsiteIntakeAllowed(data) {
+      let settingsPath = /databases/$(database)/documents/quoteSettings/websiteIntake;
+      let emailLower = data.email.lower();
+      let emailParts = emailLower.split('@');
+      return !exists(settingsPath) || (
+        get(settingsPath).data.enabled == true &&
+        !(emailLower in get(settingsPath).data.blockedEmails) &&
+        (emailParts.size() < 2 || !(('@' + emailParts[1]) in get(settingsPath).data.blockedEmails)) &&
+        (!('phone' in data) || data.phone == '' || !(data.phone in get(settingsPath).data.blockedPhones))
+      );
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;
@@ -134,6 +180,29 @@ service cloud.firestore {
         request.resource.data.productId is string &&
         request.resource.data.quantity is number;
       allow delete: if isValidId(movementId);
+    }
+
+    // Website Quote Requests (Messages)
+    match /quoteRequests/{requestId} {
+      allow get: if isValidId(requestId);
+      allow list: if true;
+      allow create: if isValidId(requestId) &&
+        isValidQuoteRequest(request.resource.data) &&
+        isWebsiteIntakeAllowed(request.resource.data);
+      allow update: if isValidId(requestId) &&
+        isValidQuoteRequest(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+        request.resource.data.status in ['new', 'reviewed', 'quoted', 'archived'];
+      allow delete: if isValidId(requestId);
+    }
+
+    // Website Messaging Settings (Intake Toggle & Blocked Senders)
+    match /quoteSettings/{settingId} {
+      allow get: if settingId == 'websiteIntake';
+      allow list: if false;
+      allow create, update: if settingId == 'websiteIntake' &&
+        isValidQuoteSettings(request.resource.data);
+      allow delete: if false;
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Trash2,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 
 interface NotificationsModalProps {
@@ -20,11 +21,15 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { alerts, markAlertRead, dismissAlert, setActiveNavTab, language, t } = useBusiness();
+  const { alerts, markAlertRead, dismissAlert, setActiveNavTab, setSelectedMessageId, language, t } = useBusiness();
 
   if (!isOpen) return null;
 
-  const handleAction = (tab?: string, id?: string) => {
+  const handleAction = (alertId: string, tab?: string, id?: string) => {
+    markAlertRead(alertId);
+    if (tab === 'messages' && id) {
+      setSelectedMessageId(id);
+    }
     if (tab) {
       setActiveNavTab(tab);
       onClose();
@@ -90,6 +95,8 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                           <Package className="w-4 h-4" />
                         ) : alert.type === 'overdue_debt' ? (
                           <Users className="w-4 h-4" />
+                        ) : alert.type === 'quote_request' ? (
+                          <MessageSquare className="w-4 h-4" />
                         ) : (
                           <AlertTriangle className="w-4 h-4" />
                         )}
@@ -107,7 +114,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                             <button
                               type="button"
                               onClick={() =>
-                                handleAction(alert.actionTarget?.tab, alert.actionTarget?.id)
+                                handleAction(alert.id, alert.actionTarget?.tab, alert.actionTarget?.id)
                               }
                               className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
                             >

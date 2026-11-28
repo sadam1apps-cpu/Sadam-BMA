@@ -13,6 +13,7 @@ export interface TranslationDictionary {
   staff: string;
   cash_bank: string;
   reports: string;
+  messages: string;
   settings: string;
 
   // Header
@@ -330,6 +331,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     staff: 'Staff',
     cash_bank: 'Cash & Bank',
     reports: 'Reports',
+    messages: 'Messages',
     settings: 'Settings',
 
     // Header
@@ -646,6 +648,7 @@ export const translations: Record<Language, TranslationDictionary> = {
     staff: 'Funcionários',
     cash_bank: 'Caixa e Bancos',
     reports: 'Relatórios',
+    messages: 'Mensagens',
     settings: 'Configurações',
 
     // Header

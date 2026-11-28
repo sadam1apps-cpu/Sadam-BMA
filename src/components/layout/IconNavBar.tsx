@@ -10,6 +10,7 @@ import {
   UserCheck,
   Landmark,
   FileBarChart,
+  MessageSquare,
   Settings,
   Lock,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ export const IconNavBar: React.FC = () => {
     setActiveNavTab,
     lowStockProducts,
     overdueCustomers,
+    newQuoteRequestsCount,
     permissions,
     currentRole,
     t,
@@ -101,6 +103,15 @@ export const IconNavBar: React.FC = () => {
       visible: permissions.canViewReports,
     },
     {
+      id: 'messages',
+      label: t.messages,
+      tooltip: 'Website Quote Requests & Messages',
+      icon: MessageSquare,
+      badge: newQuoteRequestsCount > 0 ? newQuoteRequestsCount : null,
+      badgeColor: 'bg-indigo-500',
+      visible: true,
+    },
+    {
       id: 'settings',
       label: t.settings,
       tooltip: 'Store Settings & Currency',
@@ -117,7 +128,7 @@ export const IconNavBar: React.FC = () => {
       className="sticky top-13 sm:top-16 z-20 bg-slate-900 border-b border-slate-800 shadow-xs shrink-0 overflow-hidden"
     >
       <div className="w-full max-w-7xl mx-auto px-1 sm:px-4 lg:px-6">
-        <div className="grid grid-cols-5 gap-1 py-1 sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-2 md:gap-3 sm:py-2 mx-auto max-w-full">
+        <div className="grid grid-cols-6 gap-1 py-1 sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-1.5 md:gap-2.5 sm:py-2 mx-auto max-w-full">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -128,7 +139,7 @@ export const IconNavBar: React.FC = () => {
               return (
                 <div
                   key={item.id}
-                  className="flex flex-col items-center justify-center text-center p-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl opacity-35 cursor-not-allowed select-none min-w-0 sm:min-w-[70px]"
+                  className="flex flex-col items-center justify-center text-center p-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl opacity-35 cursor-not-allowed select-none min-w-0 sm:min-w-[66px]"
                   title={`${item.label} (Restricted by role)`}
                 >
                   <div className="relative flex items-center justify-center">
@@ -149,7 +160,7 @@ export const IconNavBar: React.FC = () => {
                 type="button"
                 onClick={() => setActiveNavTab(item.id)}
                 title={item.tooltip}
-                className={`group flex flex-col items-center justify-center text-center p-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer relative min-w-0 sm:min-w-[72px] ${
+                className={`group flex flex-col items-center justify-center text-center p-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer relative min-w-0 sm:min-w-[66px] ${
                   isActive
                     ? 'bg-indigo-600 text-white font-bold shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/80'

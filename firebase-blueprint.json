@@ -256,6 +256,39 @@
         "performedBy": { "type": "string" }
       },
       "required": ["id", "productId", "type", "quantity", "timestamp"]
+    },
+    "QuoteRequest": {
+      "title": "QuoteRequest",
+      "description": "Website quote / proposal request submitted from external stech-global-website",
+      "type": "object",
+      "properties": {
+        "referenceId": { "type": "string", "maxLength": 80 },
+        "fullName": { "type": "string", "maxLength": 160 },
+        "organization": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 60 },
+        "deliveryFormat": { "type": "string", "maxLength": 100 },
+        "preferredDate": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 3000 },
+        "selectedItems": { "type": "array" },
+        "language": { "type": "string", "maxLength": 20 },
+        "status": { "type": "string", "maxLength": 40 },
+        "source": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["referenceId", "fullName", "email", "selectedItems", "status", "source"]
+    },
+    "QuoteSettings": {
+      "title": "QuoteSettings",
+      "description": "Controls whether website quote request submissions are enabled and lists blocked online senders",
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Whether receiving quote requests from the website is enabled" },
+        "blockedEmails": { "type": "array", "description": "Blocked sender email addresses or @domains" },
+        "blockedPhones": { "type": "array", "description": "Blocked sender phone numbers" },
+        "updatedAt": { "type": "string", "maxLength": 80 }
+      },
+      "required": ["enabled", "blockedEmails", "blockedPhones"]
     }
   },
   "firestore": {
@@ -306,6 +339,14 @@
     "/stockMovements/{movementId}": {
       "schema": "StockMovement",
       "description": "Audit trail for stock inventory movements"
+    },
+    "/quoteRequests/{requestId}": {
+      "schema": "QuoteRequest",
+      "description": "Incoming quote and proposal requests submitted from the public website"
+    },
+    "/quoteSettings/{settingId}": {
+      "schema": "QuoteSettings",
+      "description": "Website message intake toggle and blocked senders list"
     }
   }
 }

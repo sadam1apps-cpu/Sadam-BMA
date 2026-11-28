@@ -14,6 +14,7 @@ import { ExpensesView } from './components/expenses/ExpensesView';
 import { EmployeesView } from './components/employees/EmployeesView';
 import { CashBankView } from './components/finance/CashBankView';
 import { ReportsView } from './components/reports/ReportsView';
+import { MessagesView } from './components/messages/MessagesView';
 import { SettingsView } from './components/settings/SettingsView';
 
 // Modals
@@ -31,7 +32,7 @@ import { TransferModal } from './components/finance/TransferModal';
 import { LoginModal } from './components/auth/LoginModal';
 
 import { Product, Customer, Supplier, Sale } from './types';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, MessageSquare, X, ArrowRight } from 'lucide-react';
 
 function BusinessApp() {
   const {
@@ -45,6 +46,10 @@ function BusinessApp() {
     isScreenLocked,
     isLoginModalOpen,
     setIsLoginModalOpen,
+    latestIncomingQuoteRequest,
+    dismissIncomingQuoteToast,
+    setSelectedMessageId,
+    language,
   } = useBusiness();
 
   // Navigation & Layout States
@@ -186,6 +191,8 @@ function BusinessApp() {
 
           {activeNavTab === 'reports' && <ReportsView />}
 
+          {activeNavTab === 'messages' && <MessagesView />}
+
           {activeNavTab === 'settings' &&
             (currentRole === 'owner' ||
             permissions.canManageSettings ||
@@ -297,6 +304,68 @@ function BusinessApp() {
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
         />
+      )}
+
+      {/* Real-time Incoming Website Quote Request Notification Toast */}
+      {latestIncomingQuoteRequest && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 right-4 z-40 w-[calc(100%-2rem)] max-w-sm bg-slate-900 text-white rounded-2xl shadow-2xl border border-indigo-500/40 p-3.5"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+              <MessageSquare className="w-4.5 h-4.5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                  {language === 'pt' ? 'Novo Pedido do Website' : 'New Website Request'}
+                </span>
+                <button
+                  type="button"
+                  onClick={dismissIncomingQuoteToast}
+                  className="p-0.5 text-slate-400 hover:text-white rounded cursor-pointer"
+                  aria-label="Dismiss notification"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="text-xs font-bold text-white truncate mt-0.5">
+                {latestIncomingQuoteRequest.fullName}
+                {latestIncomingQuoteRequest.organization
+                  ? ` • ${latestIncomingQuoteRequest.organization}`
+                  : ''}
+              </div>
+              <div className="text-[11px] text-slate-300 mt-0.5">
+                {latestIncomingQuoteRequest.referenceId} •{' '}
+                {latestIncomingQuoteRequest.selectedItems.length}{' '}
+                {language === 'pt' ? 'item(ns)' : 'item(s)'}
+              </div>
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMessageId(latestIncomingQuoteRequest.id);
+                    setActiveNavTab('messages');
+                    dismissIncomingQuoteToast();
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                >
+                  <span>{language === 'pt' ? 'Abrir Mensagem' : 'View Message'}</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={dismissIncomingQuoteToast}
+                  className="px-2 py-1 rounded-lg text-[11px] text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {language === 'pt' ? 'Dispensar' : 'Dismiss'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

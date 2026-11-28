@@ -157,6 +157,32 @@ export interface Quotation {
   bankDetails?: BankDetail[];
 }
 
+export type QuoteRequestStatus = 'new' | 'reviewed' | 'quoted' | 'archived';
+
+export interface QuoteRequest {
+  id: string;
+  referenceId: string;
+  fullName: string;
+  organization?: string;
+  email: string;
+  phone?: string;
+  deliveryFormat?: string;
+  preferredDate?: string;
+  notes?: string;
+  selectedItems: string[];
+  language?: string;
+  status: QuoteRequestStatus;
+  source?: string;
+  createdAt: string;
+}
+
+export interface QuoteSettings {
+  enabled: boolean;
+  blockedEmails: string[];
+  blockedPhones: string[];
+  updatedAt?: string;
+}
+
 export interface PurchaseOrderItem {
   productId: string;
   productName: string;
@@ -414,14 +440,14 @@ export interface AccountTransaction {
 
 export interface NotificationAlert {
   id: string;
-  type: 'low_stock' | 'overdue_debt' | 'unpaid_invoice' | 'expense_alert' | 'system';
+  type: 'low_stock' | 'overdue_debt' | 'unpaid_invoice' | 'expense_alert' | 'quote_request' | 'system';
   title: string;
   message: string;
   severity: 'critical' | 'warning' | 'info';
   timestamp: string;
   read: boolean;
   actionTarget?: {
-    tab: 'sales' | 'inventory' | 'customers' | 'suppliers' | 'expenses' | 'cashbank';
+    tab: 'sales' | 'messages' | 'inventory' | 'customers' | 'suppliers' | 'expenses' | 'cashbank';
     id?: string;
   };
 }
